@@ -1,5 +1,5 @@
 export const site = {
-  origin: 'http://localhost:3000',
+  origin: 'https://xn-----6kc0affbchbnlsf1cb3o.xn--p1ai',
   name: 'Какой смысл жизни?',
   language: 'ru',
   description: 'Одна возможная игра — прожить как можно дольше.',
