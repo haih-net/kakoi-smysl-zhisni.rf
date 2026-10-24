@@ -1,8 +1,8 @@
 export const site = {
   origin: 'http://localhost:3000',
-  name: '',
+  name: 'Какой смысл жизни?',
   language: 'ru',
-  description: '',
+  description: 'Одна возможная игра — прожить как можно дольше.',
 }
 
 // Preserve the identity published at https://fi1osof.ru/about.

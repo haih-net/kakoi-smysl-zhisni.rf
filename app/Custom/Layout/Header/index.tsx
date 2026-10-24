@@ -106,7 +106,9 @@ export const Header: React.FC = () => {
     <HeaderStyled ref={header}>
       <div className="header-inner">
         <div>
-          <Link to={'/'}>Главная</Link>
+          <Link className="site-name" to="/">
+            какой смысл жизни?
+          </Link>
         </div>
         <button
           ref={toggle}
@@ -138,6 +140,9 @@ export const Header: React.FC = () => {
           data-open={isOpen}
           onBlur={handleBlur}
         >
+          <Link to="/#idea" onClick={closeMenu}>
+            Об идее
+          </Link>
           {/* <Link
             to="/users"
             onClick={closeMenu}

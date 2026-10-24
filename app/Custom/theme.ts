@@ -8,9 +8,11 @@ const breakpoints = {
 
 const colors = {
   // Primary colors
-  primary: '#173f2e',
-  secondary: '#68716a',
-  foreground: '#20372c',
+  primary: '#a12d64',
+  primaryHover: '#80204d',
+  accentSoft: '#fbf1f6',
+  secondary: '#62686b',
+  foreground: '#252b30',
   background: '#ffffff',
   muted: '#9ca3af',
 
@@ -26,16 +28,16 @@ const colors = {
 
   // Text
   text: {
-    primary: '#20372c',
-    secondary: '#68716a',
+    primary: '#252b30',
+    secondary: '#62686b',
     disabled: '#9ca3af',
     light: '#ffffff',
   },
   textMuted: '#9ca3af',
 
   // Borders and dividers
-  divider: '#e2e4da',
-  border: '#e2e4da',
+  divider: '#e5e5e2',
+  border: '#e5e5e2',
   borderHover: '#d1d5db',
 
   // Special
@@ -58,14 +60,16 @@ const colors = {
 } as const
 
 const backgrounds = {
-  page: '#faf9f5',
+  page: '#ffffff',
   paper: '#ffffff',
   elevated: '#ffffff',
   overlay: 'rgba(0, 0, 0, 0.5)',
 } as const
 
 export const theme = {
-  font: "'Nunito', Arial, sans-serif",
+  font: "Georgia, 'Times New Roman', serif",
+  fontUi: 'Arial, Helvetica, sans-serif',
+  readingWidth: '720px',
   colors,
   backgrounds,
   breakpoints,
@@ -96,7 +100,7 @@ export const theme = {
   shadows: {
     sm: '0 1px 2px rgba(0, 0, 0, 0.05)',
     md: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    focus: '0 0 0 3px rgba(23, 63, 46, 0.18)',
+    focus: 'none',
   },
 
   transitions: {

@@ -22,15 +22,15 @@ export const ButtonStyled = styled.button`
     border-color 0.15s,
     box-shadow 0.15s;
   &:hover:not(:disabled) {
-    background: #28583f;
+    background: ${theme.colors.primaryHover};
   }
   &[data-variant='secondary'] {
     background: white;
     color: ${theme.colors.text.primary};
     border-color: ${theme.colors.border};
     &:hover:not(:disabled) {
-      background: #f0f3ed;
-      border-color: #a8b7a9;
+      background: ${theme.colors.accentSoft};
+      border-color: ${theme.colors.primary};
     }
   }
   &[data-variant='danger'] {
@@ -55,17 +55,13 @@ export const ButtonStyled = styled.button`
     background: transparent;
     color: ${theme.colors.text.primary};
     &:hover:not(:disabled) {
-      background: #eef1e9;
+      background: ${theme.colors.accentSoft};
     }
   }
   &[data-size='small'] {
     min-height: 34px;
     padding: 6px 12px;
     font-size: 13px;
-  }
-  &:focus-visible {
-    outline: 3px solid #8eae9b;
-    outline-offset: 3px;
   }
   &:disabled {
     opacity: 0.55;

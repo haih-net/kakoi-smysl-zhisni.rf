@@ -41,21 +41,18 @@ export const CustomLayoutStyled = styled.div`
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    padding: 14px 20px;
-    background: ${theme.colors.primary};
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    line-height: 1.4;
-    transition: background 0.2s;
+    gap: 8px;
+    padding: 10px 0;
+    border: 0;
+    background: transparent;
+    color: ${theme.colors.primary};
+    font: inherit;
+    cursor: pointer;
     text-decoration: none;
   }
   .ai-button:hover {
-    background: #28583f;
-    text-decoration: none;
+    color: ${theme.colors.primaryHover};
+    text-decoration: underline;
   }
   .skip-link {
     position: absolute;
@@ -74,10 +71,18 @@ export const HtmlStyled = styled.html`
   font-family: ${theme.font};
   color: ${theme.colors.foreground};
   background: ${theme.backgrounds.page};
-  line-height: 1.5;
+  line-height: 1.6;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   scroll-padding-top: 112px;
+  ::selection {
+    background: ${theme.colors.accentSoft};
+    color: ${theme.colors.foreground};
+  }
+  :where(h1, h2, h3) {
+    font-weight: 400;
+    line-height: 1.2;
+  }
   body {
     margin: 0;
   }
@@ -85,6 +90,7 @@ export const HtmlStyled = styled.html`
   *::before,
   *::after {
     box-sizing: border-box;
+    outline: none;
   }
   :where(h1, h2, h3, h4, p, ul) {
     margin: 0;
@@ -109,15 +115,14 @@ export const HtmlStyled = styled.html`
   img {
     max-width: 100%;
   }
-  :where(&) a {
-    color: inherit;
+  a {
+    color: ${theme.colors.primary};
     text-decoration: none;
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
   }
-  :where(&) a:hover {
+  a:hover {
     text-decoration: underline;
-  }
-  :focus-visible {
-    outline: none;
   }
   @media (prefers-reduced-motion: reduce) {
     *,

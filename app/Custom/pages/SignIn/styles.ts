@@ -49,12 +49,8 @@ export const SignInRegistrationStyled = styled.div`
     text-decoration: none;
 
     &:hover {
-      background: #f0f3ed;
-    }
-
-    &:focus-visible {
-      outline: 3px solid #8eae9b;
-      outline-offset: 3px;
+      text-decoration: underline;
+      background: ${theme.colors.accentSoft};
     }
   }
 `

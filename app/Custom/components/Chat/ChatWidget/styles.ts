@@ -351,14 +351,14 @@ export const ChatButton = styled.button`
   }
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(23, 63, 46, 0.24);
+  box-shadow: 0 4px 12px rgba(161, 45, 100, 0.16);
   transition:
     transform 0.2s,
     box-shadow 0.2s;
 
   &:hover {
     transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(23, 63, 46, 0.32);
+    box-shadow: 0 6px 16px rgba(161, 45, 100, 0.24);
   }
 
   svg {

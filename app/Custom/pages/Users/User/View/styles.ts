@@ -73,7 +73,7 @@ export const UserPageViewStyled = styled.div`
   gap: 20px;
   .back-link {
     font-size: 14px;
-    color: ${theme.colors.text.secondary};
+    color: ${theme.colors.primary};
     align-self: flex-start;
     text-decoration: none;
   }

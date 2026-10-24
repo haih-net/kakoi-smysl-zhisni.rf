@@ -2,13 +2,16 @@ import { styled } from '@linaria/react'
 import { theme } from '../../theme'
 
 export const HeaderStyled = styled.header`
-  position: sticky;
+  position: relative;
   top: 0;
   z-index: 300;
   background: ${theme.backgrounds.page};
-  border-bottom: 1px solid ${theme.colors.border};
+  .site-name {
+    font-size: clamp(20px, 2vw, 25px);
+    line-height: 1.2;
+  }
   .header-inner {
-    max-width: 1328px;
+    max-width: 1440px;
     margin: auto;
     min-height: 80px;
     padding: 16px;
@@ -23,7 +26,7 @@ export const HeaderStyled = styled.header`
     }
 
     @media (min-width: ${theme.breakpoints.sm}px) {
-      min-height: 96px;
+      min-height: 88px;
       padding: 18px 40px;
     }
   }
@@ -39,7 +42,7 @@ export const HeaderStyled = styled.header`
     border-bottom: 1px solid ${theme.colors.border};
     align-items: stretch;
     gap: 6px;
-    font-size: 14px;
+    font-size: 17px;
 
     @media (min-width: ${theme.breakpoints.sm}px) {
       display: flex;
@@ -72,12 +75,11 @@ export const HeaderStyled = styled.header`
     }
   }
   nav a[aria-current='page'] {
-    text-decoration: underline;
-    text-underline-offset: 6px;
+    font-weight: 700;
   }
   .ai-button {
     margin-top: 10px;
-    justify-content: center;
+    justify-content: flex-start;
 
     @media (min-width: ${theme.breakpoints.sm}px) {
       margin-top: 0;
@@ -86,7 +88,7 @@ export const HeaderStyled = styled.header`
     }
 
     @media (min-width: ${theme.breakpoints.md}px) {
-      margin-left: 32px;
+      margin-left: 0;
     }
   }
   .menu-toggle {
@@ -109,21 +111,22 @@ export const HeaderStyled = styled.header`
   .signin-link {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-height: 42px;
-    padding: 10px 16px;
-    border: 1px solid ${theme.colors.border};
-    border-radius: 10px;
-    color: ${theme.colors.text.primary};
-    background: white;
+    justify-content: flex-start;
+    min-height: 44px;
+    padding: 10px 0;
+    border: 0;
+    border-radius: 0;
+    color: ${theme.colors.primary};
+    background: transparent;
     font: inherit;
-    font-weight: 700;
+    font-weight: 400;
     text-decoration: none;
     cursor: pointer;
   }
   .feedback-button:hover,
   .signin-link:hover {
-    background: #eef1e9;
+    background: transparent;
+    text-decoration: underline;
   }
   .account-menu {
     position: relative;
@@ -144,11 +147,7 @@ export const HeaderStyled = styled.header`
   }
   .account-menu summary:hover,
   .account-menu[open] summary {
-    background: #eef1e9;
-  }
-  .account-menu summary:focus-visible {
-    outline: 2px solid ${theme.colors.primary};
-    outline-offset: 3px;
+    background: ${theme.colors.accentSoft};
   }
   .account-avatar {
     width: 32px;
@@ -156,7 +155,7 @@ export const HeaderStyled = styled.header`
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: #e4eadf;
+    background: ${theme.colors.accentSoft};
     flex-shrink: 0;
   }
   .account-name {
@@ -171,7 +170,7 @@ export const HeaderStyled = styled.header`
     border: 1px solid ${theme.colors.border};
     border-radius: 12px;
     background: white;
-    box-shadow: 0 12px 32px #1d30251a;
+    box-shadow: 0 12px 32px #252b3014;
     min-width: 220px;
     @media (min-width: ${theme.breakpoints.sm}px) {
       position: absolute;
@@ -194,10 +193,11 @@ export const HeaderStyled = styled.header`
     font-size: 14px;
     font-weight: 600;
     text-decoration: none;
-    color: ${theme.colors.text.primary};
+    color: ${theme.colors.primary};
   }
   .account-dropdown a:hover {
-    background: #eef1e9;
+    text-decoration: underline;
+    background: ${theme.colors.accentSoft};
   }
   .account-dropdown button {
     margin-top: 4px;
