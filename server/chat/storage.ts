@@ -1,3 +1,4 @@
+import { lockDatabaseWrite } from '../database/lock'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Knex } from 'knex'
 import { db } from '../database'
@@ -62,6 +63,7 @@ export class ChatStorage {
     )
       .where({ id: 'signing-key' })
       .first()
+
     if (!row) {
       throw new Error('Chat signing key is missing')
     }
@@ -73,10 +75,11 @@ export class ChatStorage {
     const signature = createHmac('sha256', await this.getSecret())
       .update(id)
       .digest('hex')
+
     await this.database('ChatDialogue').insert({
       chatId: id,
       channel,
-      createdAt: Date.now(),
+      createdAt: new Date(),
     })
     return `${id}.${signature}`
   }
@@ -85,12 +88,14 @@ export class ChatStorage {
     const match = /^Bearer ([a-f0-9]{48})\.([a-f0-9]{64})$/.exec(
       authorization || '',
     )
+
     if (!match) {
       return null
     }
     const expected = createHmac('sha256', await this.getSecret())
       .update(match[1])
       .digest()
+
     return timingSafeEqual(expected, Buffer.from(match[2], 'hex'))
       ? match[1]
       : null
@@ -111,6 +116,7 @@ export class ChatStorage {
       .select('*')
       .orderBy('createdAt', 'desc')
       .orderBy('chatId', 'asc')
+
     return rows.map(({ chatId, createdAt, channel }) => ({
       channel,
       chatId,
@@ -125,11 +131,13 @@ export class ChatStorage {
     }>('ChatDialogue')
       .where({ chatId: id })
       .first()
+
     return row?.channel ?? null
   }
 
   async appendFeedback(id: string, content: string): Promise<boolean> {
     return this.database.transaction(async (trx) => {
+      await lockDatabaseWrite(trx, `chat:${id}`)
       const storage = new ChatStorage(trx)
       if ((await storage.channel(id)) !== 'feedback') {
         throw new Error('Токен не предназначен для формы обратной связи.')
@@ -137,6 +145,7 @@ export class ChatStorage {
       const existing = (await storage.read(id)).find(
         (message) => message.id === 'feedback',
       )
+
       if (existing) {
         if (existing.content !== content) {
           throw new Error('Для нового сообщения откройте форму заново.')
@@ -159,6 +168,7 @@ export class ChatStorage {
       .select('chatId', 'payload')
       .where({ indexed: 1 })
       .orderBy('sequence')
+
     return rows.map(({ chatId, payload }) => {
       const message = JSON.parse(payload) as StoredMessage
       return {
@@ -190,7 +200,7 @@ export class ChatStorage {
       throw new Error('Некорректные метаданные сообщения')
     }
     await this.database('ChatDialogue')
-      .insert({ chatId: id, createdAt: Date.now() })
+      .insert({ chatId: id, createdAt: new Date() })
       .onConflict('chatId')
       .ignore()
     await this.database('ChatMessage').insert({
@@ -210,6 +220,7 @@ export class ChatStorage {
       throw new Error('Expected an incoming user message')
     }
     return this.database.transaction(async (trx) => {
+      await lockDatabaseWrite(trx, `chat:${id}`)
       const storage = new ChatStorage(trx)
       // Write first to acquire the SQLite writer lock before reading history.
       await storage.append(id, message)
@@ -219,6 +230,7 @@ export class ChatStorage {
         .orderBy('sequence', 'desc')
         .offset(1)
         .first()
+
       return {
         channel: await storage.channel(id),
         previous: previous ? (JSON.parse(previous.payload) as Message) : null,
@@ -232,14 +244,16 @@ export class ChatStorage {
       .select('payload')
       .where({ chatId: id })
       .orderBy('sequence')
+
     return rows.map(({ payload }) => JSON.parse(payload) as Message)
   }
 
   async save(id: string, messages: Message[]): Promise<void> {
     this.validateId(id)
     await this.database.transaction(async (trx) => {
+      await lockDatabaseWrite(trx, `chat:${id}`)
       await trx('ChatDialogue')
-        .insert({ chatId: id, createdAt: Date.now() })
+        .insert({ chatId: id, createdAt: new Date() })
         .onConflict('chatId')
         .ignore()
       await trx('ChatMessage').where({ chatId: id }).delete()

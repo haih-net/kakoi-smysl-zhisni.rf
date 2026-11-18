@@ -12,6 +12,7 @@ async function main(): Promise<void> {
       help: { type: 'boolean', short: 'h' },
     },
   })
+
   if (values.help) {
     process.stdout.write(
       'Usage: npm run chat -- [--endpoint URL] [--token TOKEN] "Message"\n',
@@ -23,12 +24,13 @@ async function main(): Promise<void> {
     throw new Error('Provide a message. Use --help for usage.')
   }
   const { chatStorage } = await import('../server/chat/storage')
-  const { db } = await import('../server/database')
+  const { db, migrateDatabase } = await import('../server/database')
   const controller = new AbortController()
   const cancel = (): void => controller.abort(new Error('Interrupted'))
   process.once('SIGINT', cancel)
   process.once('SIGTERM', cancel)
   try {
+    await migrateDatabase(db)
     const token = values.token ?? (await chatStorage.issue())
     if (values.token === undefined) {
       console.error(`Token: ${token}`)
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
         },
       },
     })
+
     await new ChatAgent().run(message, token, context, {
       onAuthenticated: (chatId) => {
         console.error(`Dialogue: ${chatId}`)

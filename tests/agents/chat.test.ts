@@ -5,7 +5,7 @@ import { createServer, type Server } from 'node:http'
 import express, { type Express } from 'express'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { schema } from '../../server/schema'
-import { db } from '../../server/database'
+import { db, migrateDatabase } from '../../server/database'
 import { setupChat } from '../../server/chat'
 import { chatStorage } from '../../server/chat/storage'
 import type { ChatResponse } from '../../server/schema/types/ChatMessage/helpers/proxyChat'
@@ -19,6 +19,7 @@ const fixture = {
   id: randomUUID(),
   title: `Test item ${randomUUID()}`,
 }
+
 const lookups: string[] = []
 const testSchema = extendSchema(
   schema,
@@ -27,6 +28,7 @@ const testSchema = extendSchema(
   extend type Query { agentTestPage(uri: String!): AgentTestPage }
 `),
 )
+
 let server: Server | undefined
 let base: string
 const forwarded: Array<{ pageUrl?: string; marker?: string }> = []
@@ -38,6 +40,7 @@ beforeAll(async () => {
     }
   }
   expect(process.env.DATABASE_FILENAME).toBe(':memory:')
+  await migrateDatabase(db)
   const app: Express = express()
   app.use('/api/chat', (req, _res, next) => {
     forwarded.push({
@@ -61,6 +64,7 @@ beforeAll(async () => {
         },
       },
     })
+
     res.json(result)
   })
   const httpServer = createServer(app)
@@ -105,11 +109,13 @@ async function send(
     }),
     signal: AbortSignal.timeout(130000),
   })
+
   expect(response.ok).toBe(true)
   const result = (await response.json()) as {
     errors?: unknown[]
     data?: { sendChatMessage: ChatResponse }
   }
+
   expect(result.errors).toBeUndefined()
   const answer = result.data?.sendChatMessage
   expect(answer?.success).toBe(true)
@@ -146,6 +152,7 @@ it('reads the current page from request headers', async () => {
     'Return only a JSON object with one field pageUrl containing the exact current page URL from the message context. Use null if unavailable. Do not use tools or add explanations.',
     pageUrl,
   )
+
   expect(result).toEqual({ pageUrl })
   expect(
     conversation(await chatStorage.read(token.split('.')[0])).map(

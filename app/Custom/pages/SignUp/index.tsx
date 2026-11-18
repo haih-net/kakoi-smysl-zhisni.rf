@@ -2,11 +2,11 @@ import type * as React from 'react'
 import { Link } from 'react-router'
 import { SignUpForm } from 'app/Custom/components/Auth/SignUpForm'
 import { useAuthedRedirect } from 'app/Custom/components/Auth/hooks/useAuthedRedirect'
-import { useAppContext } from 'app/Custom/hooks/useAppContext'
+import { useAppContext } from 'app/Custom/components/AppContext'
 import { SignUpPageStyled } from './styles'
 export const SignUpPage: React.FC = () => {
   useAuthedRedirect('/')
-  const { user, userLoading } = useAppContext()
+  const { user, userLoading = true } = useAppContext() ?? {}
   return (
     <SignUpPageStyled>
       <h1>Регистрация</h1>

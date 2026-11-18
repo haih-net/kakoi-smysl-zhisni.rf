@@ -1,7 +1,7 @@
-import { afterAll, afterEach, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { ApolloServer } from '@apollo/server'
 import type { FormattedExecutionResult } from 'graphql'
-import { db } from '../../server/database'
+import { db, migrateDatabase } from '../../server/database'
 import type { Context } from '../../server/schema/builder'
 import express from 'express'
 import type { Request } from 'express'
@@ -13,6 +13,7 @@ const req: Request = Object.assign(Object.create(express.request) as Request, {
   socket: { remoteAddress: '127.0.0.1' },
   app: express(),
 })
+
 const api: ApolloServer<Context> = new ApolloServer<Context>({ schema })
 const executeStatistics = async (
   data: unknown,
@@ -25,12 +26,18 @@ const executeStatistics = async (
     },
     { contextValue: { req: request, db, currentUser: null } },
   )
+
   if (response.body.kind !== 'single') {
     throw new Error('Expected a single response')
   }
   return response.body.singleResult
 }
-afterAll(() => api.stop())
+
+beforeAll(() => migrateDatabase(db))
+afterAll(async () => {
+  await api.stop()
+  await db.destroy()
+})
 
 const packet = {
   visitorId: 'a'.repeat(24),
@@ -52,20 +59,24 @@ const packet = {
     },
   ],
 }
+
 const configured = (): void => {
   vi.stubEnv('AGENTS_CENTER_ENDPOINT', 'https://center.test/api/')
   vi.stubEnv('AGENTS_CENTER_TOKEN', 'fixture-secret')
 }
+
 afterEach(() => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
 })
 
-test('disabled integration makes no upstream request', async () => {
+test('disabled integration acknowledges local delivery without an upstream request', async () => {
   vi.stubEnv('AGENTS_CENTER_TOKEN', '')
   const fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
-  expect(await logStatistics(packet, req)).toBeNull()
+  expect(await logStatistics(packet, req)).toEqual([
+    { id: packet.events[0].eventKey },
+  ])
   expect(fetchMock).not.toHaveBeenCalled()
 })
 
@@ -78,6 +89,7 @@ test('GraphQL forwards a visitor page view through createActivity with server-on
         JSON.stringify({ data: { createActivity: { id: 'activity-1' } } }),
       ),
     )
+
   vi.stubGlobal('fetch', fetchMock)
   const result = await executeStatistics(packet)
   expect(result.errors).toBeUndefined()
@@ -92,6 +104,7 @@ test('GraphQL forwards a visitor page view through createActivity with server-on
       input: { type: string; status: string; data: Record<string, unknown> }
     }
   }
+
   expect(body.variables.input).toMatchObject({
     type: 'page.viewed',
     status: 'success',
@@ -117,6 +130,7 @@ test('GraphQL sends Unicode domains in every URL and site field to Agents Center
       }),
     ),
   )
+
   vi.stubGlobal('fetch', fetchMock)
   const request: Request = Object.assign(Object.create(req) as Request, {
     headers: {
@@ -125,6 +139,7 @@ test('GraphQL sends Unicode domains in every URL and site field to Agents Center
       referer: 'https://xn--e1afmkfd.test/pricing',
     },
   })
+
   const result = await executeStatistics(
     {
       ...packet,
@@ -138,12 +153,14 @@ test('GraphQL sends Unicode domains in every URL and site field to Agents Center
     },
     request,
   )
+
   expect(result.errors).toBeUndefined()
   expect(result.data?.logStats).toEqual([{ id: 'unicode-activity' }])
   const options: RequestInit = fetchMock.mock.calls[0][1] as RequestInit
   const body = JSON.parse(String(options.body)) as {
     variables: { input: { data: Record<string, unknown> } }
   }
+
   expect(body.variables.input.data).toMatchObject({
     site: 'пример.test',
     url: 'https://пример.test/pricing?next=xn--p1ai',
@@ -165,17 +182,20 @@ test.each([200, 301, 399, 400, 401, 403, 404, 410, 500, 503])(
         }),
       ),
     )
+
     vi.stubGlobal('fetch', fetchMock)
     const result = await executeStatistics({
       ...packet,
       events: [{ ...packet.events[0], statusCode, status }],
     })
+
     expect(result.errors).toBeUndefined()
     expect(result.data?.logStats).toEqual([{ id: 'status-activity' }])
     const options: RequestInit = fetchMock.mock.calls[0][1] as RequestInit
     const body = JSON.parse(String(options.body)) as {
       variables: { input: { status: string; data: Record<string, unknown> } }
     }
+
     expect(body.variables.input).toMatchObject({
       status,
       data: { statusCode, status },

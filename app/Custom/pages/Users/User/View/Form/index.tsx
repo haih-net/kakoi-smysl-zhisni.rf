@@ -1,3 +1,4 @@
+import { TextField } from 'app/Custom/components/controls/TextField'
 import React, {
   lazy,
   Suspense,
@@ -8,6 +9,7 @@ import React, {
 } from 'react'
 import { UserFragment, useUpdateCurrentUserMutation } from 'app/gql/generated'
 import { useSnackbar } from 'app/Custom/hooks/useSnackbar'
+import { UserAvatar } from 'app/Custom/components/UserAvatar'
 import { Button } from 'app/Custom/components/Button'
 import {
   FileUploader,
@@ -20,11 +22,16 @@ const MarkdownEditor = lazy(async () => ({
   default: (await import('app/Custom/components/Markdown/Editor'))
     .MarkdownEditor,
 }))
+
 export const UserEditForm: React.FC<{
   user: UserFragment
   closeForm?: () => void
 }> = ({ user, closeForm }) => {
   const id = useId()
+  const renderAvatar = useCallback<
+    NonNullable<FileUploaderProps['renderPreview']>
+  >((src) => <UserAvatar user={user} src={src} size={72} />, [user])
+
   const { addMessage } = useSnackbar() ?? {}
   const [image, setImage] = useState(user.image ?? '')
   const [intro, setIntro] = useState(user.intro ?? '')
@@ -36,6 +43,7 @@ export const UserEditForm: React.FC<{
     (file) => setImage(file?.path ?? ''),
     [],
   )
+
   const onSubmit = useCallback(
     async (event: React.SubmitEvent<HTMLFormElement>): Promise<void> => {
       event.preventDefault()
@@ -46,11 +54,13 @@ export const UserEditForm: React.FC<{
       const data: UserFormData = {
         username: String(fields.get('username') ?? '').trim() || null,
         fullname: String(fields.get('fullname') ?? ''),
+        email: String(fields.get('email') ?? '').trim() || null,
         password: String(fields.get('password') ?? '') || undefined,
         image,
         intro,
         content,
       }
+
       const form = { formState: { errors: validateUserForm(data) } }
       if (Object.keys(form.formState.errors).length) {
         console.error(form.formState.errors)
@@ -77,6 +87,7 @@ export const UserEditForm: React.FC<{
     },
     [image, intro, content, update, addMessage, closeForm],
   )
+
   return (
     <UserEditFormStyled onSubmit={onSubmit}>
       <fieldset disabled={loading}>
@@ -89,9 +100,19 @@ export const UserEditForm: React.FC<{
             autoComplete="username"
           />
         </label>
+        <label htmlFor={`${id}-email`}>
+          Email
+          <input
+            id={`${id}-email`}
+            name="email"
+            type="email"
+            defaultValue={user.email ?? ''}
+            autoComplete="email"
+          />
+        </label>
         <label htmlFor={`${id}-password`}>
           Новый пароль
-          <input
+          <TextField
             id={`${id}-password`}
             name="password"
             type="password"
@@ -109,6 +130,7 @@ export const UserEditForm: React.FC<{
         <div>
           Фото профиля
           <FileUploader
+            renderPreview={renderAvatar}
             value={image ? `/images/resized/middle/${image}` : ''}
             onChange={onChangeImage}
             disabled={loading}

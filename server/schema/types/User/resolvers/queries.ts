@@ -44,10 +44,10 @@ builder.queryField('users', (t) =>
           extensions: { code: 'BAD_USER_INPUT' },
         })
       }
-      const query = usersQuery(ctx.db, where, ctx.currentUser).orderBy(
-        'createdAt',
-        'desc',
-      )
+      const query = usersQuery(ctx.db, where, ctx.currentUser)
+        .orderBy('createdAt', 'desc')
+        .orderBy('id')
+
       if (skip !== null && skip !== undefined) {
         query.offset(skip)
       }
@@ -66,6 +66,7 @@ builder.queryField('usersCount', (t) =>
       const result = await usersQuery(ctx.db, where, ctx.currentUser).count<
         { count: string }[]
       >({ count: '*' })
+
       return Number(result[0]?.count ?? 0)
     },
   }),

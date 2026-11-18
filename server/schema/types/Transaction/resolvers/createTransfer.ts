@@ -14,6 +14,7 @@ const CreateTransferInput = builder.inputType('CreateTransferInput', {
     title: t.string(),
   }),
 })
+
 export async function createTransfer(
   data: typeof CreateTransferInput.$inferInput,
   ctx: Context,
@@ -31,21 +32,24 @@ export async function createTransfer(
       .where('userId', user.id)
       .where('amount', '>=', data.amount)
       .update({
-        amount: db.raw('ROUND(amount - ?, 6)', [data.amount]),
+        amount: db.raw('ROUND(CAST(amount - ? AS NUMERIC), 6)', [data.amount]),
         updatedAt: new Date(),
       })
+
     if (updated !== 1) {
       throw new Error('Недостаточно средств')
     }
     const recipient = await db('User')
       .where({ id: data.toUserId, status: 'active' })
       .first()
+
     if (!recipient) {
       throw new Error('Получатель не найден или заблокирован')
     }
     const sender = await db<BalanceRecord>('Balance')
       .where('userId', user.id)
       .first()
+
     if (!sender) {
       throw new Error('Баланс не найден')
     }
@@ -65,6 +69,7 @@ export async function createTransfer(
       balanceId: sender.id,
       parentId: null,
     }
+
     await db<TransactionRecord>('Transaction').insert(outgoing)
     await db<TransactionRecord>('Transaction').insert({
       ...outgoing,
@@ -78,7 +83,7 @@ export async function createTransfer(
     await db<BalanceRecord>('Balance')
       .where('id', receiver.id)
       .update({
-        amount: db.raw('ROUND(amount + ?, 6)', [data.amount]),
+        amount: db.raw('ROUND(CAST(amount + ? AS NUMERIC), 6)', [data.amount]),
         updatedAt: new Date(),
       })
     return outgoing

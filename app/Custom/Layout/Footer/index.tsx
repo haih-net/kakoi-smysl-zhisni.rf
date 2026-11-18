@@ -7,7 +7,7 @@ export const Footer: React.FC = () => (
     <div className="footer-inner">
       <div>
         <Link className="footer-title" to="/">
-          какой смысл жизни?
+          Какой смысл жизни?
         </Link>
         <p>Можно продолжать искать.</p>
       </div>

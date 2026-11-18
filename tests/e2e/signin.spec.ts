@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 const signMessage = 'Test sign-in challenge: test-nonce'
 
-test('MetaMask sign-in refreshes the session and redirects to home', async ({
+test('MetaMask sign-in refreshes the session and redirects to profile', async ({
   page,
 }) => {
   const errors: string[] = []
@@ -31,6 +31,7 @@ test('MetaMask sign-in refreshes the session and redirects to home', async ({
       operationName: string
       variables: Record<string, unknown>
     }
+
     if (body.operationName === 'ethAccountNonce') {
       await route.fulfill({
         json: {
@@ -95,7 +96,7 @@ test('MetaMask sign-in refreshes the session and redirects to home', async ({
     ),
   ).toBe(false)
   await page.getByRole('button', { name: 'Войти через MetaMask' }).click()
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/panel\/profile$/)
   expect(await page.evaluate(() => localStorage.getItem('token'))).toBe(
     'test-auth-token',
   )

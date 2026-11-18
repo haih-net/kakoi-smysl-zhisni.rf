@@ -1,5 +1,15 @@
 # HAIH Site
 
+## Индексация звонков и документации
+
+В шаблоне пункты «Видеозвонки» и «Документация» показываются в основном меню только пользователям с `sudo === true`. Страницы `/calls`, `/docs` и их вложенные страницы имеют `noindex` и исключены из sitemap, в том числе при наличии ссылок на них в базе данных.
+
+Включение индексации этих разделов — отдельная задача на конечном проекте. При её выполнении нужно согласованно обновить метаданные страниц, sitemap, видимость меню и соответствующие тесты.
+
+## Язык проекта
+
+Сайт на русском языке. Все пользовательские тексты — интерфейс, пояснения, ошибки, сообщения валидации, подписи доступности, метаданные и документация на сайте — должны быть на русском. Новую документацию и изменения README писать на русском. Идентификаторы кода, имена API, названия технологий и технические обозначения сохраняются в оригинале. Сообщения коммитов пишутся на английском.
+
 **Build better software with AI — by starting from requirements, not frameworks.**
 
 HAIH Site is a public demonstration of requirement-driven development. Instead of adopting tools first and fitting problems to them, we begin with real needs and choose solutions that earn their place.
@@ -246,6 +256,18 @@ Browser tests simulate the injected wallet and GraphQL responses. They verify
 session refresh, bearer headers, redirect and mobile layout; they do not replace
 a manual check with the real MetaMask extension.
 
+## Client certificate sign-in
+
+Each site can enable certificate sign-in alongside its existing sign-in methods. Traefik requests an optional client certificate during the site’s HTTPS handshake, so the browser may prompt when the site first opens. Visitors can continue without a certificate. The sign-in button sends a POST to the same site and receives the usual JWT. Linking a key sends the current Bearer token with the POST. The application checks the certificate’s public key against the site’s allowlist in `storage/client-certificate/authorized-keys.pem` before granting access.
+
+- **Link a key to an existing account.** Sign in with any supported method, open your profile and link your certificate. Each key can be linked once per site. Attempting to link it again, even to the same account, returns HTTP 409.
+- **Sign in with a linked key.** Select certificate sign-in on `/signin` to access the linked account with its current permissions. Blocked accounts are denied access.
+- **Create the first administrator.** An allowlisted, unlinked key creates a passwordless account with `sudo = true` only if the database has no sudo user. If one already exists, the confirmation form still appears, but confirming (`force=true`) currently returns HTTP 403. Cancel, sign in to the intended account and link the key from its profile.
+
+To reuse one certificate across sites, add its public key to each clone’s allowlist and link it separately on each site. Keep the private key on the client. In each clone’s `docker/.env`, set `VITE_CLIENT_CERT_LOGIN=true` before building and pass the same value to the running app (Compose loads it from `docker/.env`). To disable both certificate endpoints, set the value to `false` and recreate the app container. Rebuild the frontend to hide the buttons. Generate the route with `node scripts/configure-certificate-route.mjs --local` for development or pass `--host <site-domain>` and your HTTPS entry point for deployment. Install it on the Traefik instance that terminates TLS for that site. The standard Compose files support this setup. [Local setup, browser import and deployment guide (Russian)](docker/traefik/CERTIFICATE-LOGIN.md)
+
+Run the server-side certificate sign-in tests with `npm test -- server/middleware/clientCertificate/index.test.ts`.
+
 ## Tests
 
 | Command                          | Scope and prerequisites                                                                                                                                            |
@@ -256,11 +278,11 @@ a manual check with the real MetaMask extension.
 | `npm run test:integration`       | Builds the site, then checks generated SEO/SSR output, monitoring configuration generation, statistics delivery and GraphQL metrics with isolated local listeners. |
 | `npm run test:integration:watch` | Watches integration tests; run `npm run build` first and rebuild after changing page/build inputs.                                                                 |
 | `npm run test:integration:stack` | HTTP/cache and monitoring checks against an already running production preview stack.                                                                              |
-| `npm run e2e`                    | Playwright: Chromium, WebKit and mobile Chromium; builds and starts the production Node server automatically.                                                      |
+| `npm run e2e`                    | Playwright: desktop and mobile Chromium; builds and starts the production Node server automatically.                                                               |
 | `npm run e2e:webkit`             | Only the WebKit browser project.                                                                                                                                   |
 | `npm run e2e:report`             | Opens the last Playwright HTML report.                                                                                                                             |
 
-Install browser binaries once with `npx playwright install chromium webkit` (Linux hosts may also need `npx playwright install-deps chromium webkit`). Playwright owns port 4317 and fails if it is already occupied. To test an existing server or the real proxy/cache path, supply `PLAYWRIGHT_BASE_URL`; in that mode it does not build or start a server:
+Install Chromium once with `npx playwright install chromium` (Linux hosts may also need `npx playwright install-deps chromium`). WebKit is optional: install it with `npx playwright install webkit` and its Linux dependencies with `npx playwright install-deps webkit`, then run `npm run e2e:webkit`. Playwright owns port 4317 and fails if it is already occupied. To test an existing server or the real proxy/cache path, supply `PLAYWRIGHT_BASE_URL`; in that mode it does not build or start a server:
 
 ```bash
 PLAYWRIGHT_BASE_URL=http://haih.localhost npm run e2e
@@ -316,25 +338,94 @@ prove Traefik/Varnish cache behavior or development HMR.
 
 All requests use the server-side `CHAT_API_BASE_URL` and `CHAT_API_KEY`. The URL is required: there is no implicit fallback to another provider. `CHAT_MODEL` specifies the chat model; `CHAT_WEB_SEARCH_MODEL` allows a different search model to be selected, falling back to the chat model when empty. `CHAT_WEB_SEARCH_TOOL` defaults to `openrouter:web_search` with `engine: native` when unset or empty. For Polza, set `CHAT_API_BASE_URL=https://polza.ai/api/v1`, use a Polza API key and set `CHAT_WEB_SEARCH_TOOL=polza:web_search`; this tool uses Polza search engines, so the client omits `engine: native`. See the [OpenRouter](https://openrouter.ai/docs/guides/features/server-tools/web-search) and [Polza](https://polza.ai/docs/gaidy/server-tools) tool documentation. Native search capabilities depend on the model and endpoint; OpenRouter may fall back to another engine for unsupported models. Image generation passes its own model from the incoming GraphQL request and uses the same URL and key; the former OPENROUTER_API_URL and OPENROUTER_API_KEY are no longer used. The legacy GraphQL provider name OPENROUTER is retained for client compatibility and does not determine the API URL.
 
-## Local database
+## Database
 
-The server uses SQLite through Knex and better-sqlite3. The optional
-`DATABASE_FILENAME` environment variable selects the SQLite file path. When unset
-or an empty string, it defaults to `server/database/data/database.sqlite`. Relative
-paths resolve from the working directory. The schema initializes on first use.
-Docker Compose passes `/app/server/database/data/database.sqlite` by default;
-set `DATABASE_FILENAME` in `docker/.env` to override it. Tests use `:memory:`. `DATABASE_URL` is no longer used. Data and SQLite journal files are
-excluded from Git and Docker build contexts. Docker Compose mounts the data
-directory so it survives container replacement; it must be writable by the
-container user (UID 1000 in the production image).
+The server uses Knex with SQLite (better-sqlite3) or PostgreSQL (pg). Select the
+backend through environment variables; application queries and APIs are shared.
 
-Connections enable WAL, foreign keys and a five-second busy timeout. Dates are
-stored as Unix milliseconds and returned as JavaScript Dates; boolean fields
-are restored on reads. Schema version 2 includes the user, token, wallet,
-Telegram account, balance, file, concept, route and chat tables used by the resolvers.
-Existing version 1 databases are upgraded automatically without replacing their records.
-Existing PostgreSQL data is not imported. Back up the database with SQLite's
-backup API, or stop the server before copying the entire data directory.
+SQLite, the default for small sites:
+
+```dotenv
+DATABASE_CLIENT=sqlite
+DATABASE_FILENAME=server/database/data/database.sqlite
+```
+
+PostgreSQL, with Node running on the host and database port 5432 published:
+
+```dotenv
+DATABASE_CLIENT=pg
+DATABASE_URL=postgresql://postgres:password@127.0.0.1:5432/postgres
+```
+
+For Node running inside Docker, use the actual full database container name,
+for example `website_template-supabase-1`, instead of `127.0.0.1`. Match the
+credentials and database name to the PostgreSQL container configuration and
+URL-encode special characters in credentials. The Docker environment examples
+are in `docker/.env.example`. `DATABASE_URL` is required only for `pg`;
+`DATABASE_FILENAME` applies only to SQLite.
+
+Changing the backend does not transfer data. To start with a clean PostgreSQL
+installation, start its container, set the environment, run `npm run db:migrate`,
+and restart the app. If the PostgreSQL database does not exist, the app connects
+to the maintenance database `postgres` with the same credentials and creates the
+configured database before migrations. The role needs CONNECT access to `postgres`
+and CREATEDB (or superuser) privileges. Existing databases do not require CREATEDB.
+Authentication and other connection failures are reported without attempting creation.
+The HTTP server also applies pending migrations before
+accepting requests. Both commands must run from the project root. In Docker,
+run `npm run db:migrate` inside the app container using its configured environment.
+
+### Migrations
+
+Migrations live in `server/database/migrations` as named `.mjs` files with
+`up` and `down` functions. Knex records each completed filename in
+`knex_migrations`; there is no single application schema version.
+
+```bash
+npm run db:make -- add_user_settings
+npm run db:migrate
+npm run db:migrations
+```
+
+Write schema changes with the Knex schema builder and support both backends.
+The initial migration demonstrates date defaults and JSON validation where SQL
+differs. Migration files are shipped in the production image. New files created
+in a running container must also be saved in the source repository.
+
+Keep completed migrations unchanged and present in the repository. After merging
+an upstream change, `db:migrate` applies every missing migration, including a
+file dated earlier than migrations already completed locally. Filenames must be
+unique across forks; use a descriptive feature name with the generated timestamp.
+Knex orders pending files by name, not by a dependency graph. Conflicting schema
+changes or dependencies across branches must be resolved during the merge, and
+both an existing database upgrade and a clean installation should be checked.
+The initial migration intentionally refuses rollback to avoid dropping all data.
+
+Existing SQLite databases use the frozen `server/database/schema.ts` upgrader
+once to reach legacy version 9, then the initial Knex migration adopts their
+schema and preserves records. Add all future changes as migration files; do not
+increment `PRAGMA user_version` or extend the legacy upgrader.
+
+SQLite connections enable WAL, foreign keys and a five-second busy timeout.
+Dates are stored as Unix milliseconds in SQLite and timestamptz in PostgreSQL;
+both return JavaScript Dates. JSON payloads remain validated text, and numeric
+and boolean results are normalized where the drivers differ. Operations that
+need to serialize a read followed by a write acquire a SQLite writer lock or a
+PostgreSQL transaction advisory lock.
+
+SQLite defaults to `server/database/data/database.sqlite`; relative paths resolve
+from the working directory. Docker Compose uses `/app/server/database/data/database.sqlite`
+and mounts the data directory, which must be writable by the container user
+(UID 1000 in the production image). Data and SQLite journal files are excluded
+from Git and Docker build contexts. Back up SQLite with its backup API, or stop
+the server before copying the entire data directory.
+
+The normal test suite uses isolated in-memory SQLite databases. To also run the
+PostgreSQL contract check, supply `TEST_DATABASE_URL` to a PostgreSQL role allowed
+to create databases and temporary test roles, and run
+`npx vitest run server/database/postgres.test.ts`.
+It creates and drops its own randomly named database; it does not migrate the
+database named in that URL.
 
 ### First administrator
 
@@ -348,15 +439,16 @@ Alternatively, use `--password-stdin` to read the password from standard input.
 The script creates an active user with `sudo = true` and a bcrypt password hash.
 It initializes a new database if necessary. If **any user** already exists,
 it exits with code 1 without adding or changing users. The emptiness check and
-insert run in one immediate SQLite transaction, including for concurrent CLI runs.
-`--database <path>` overrides the database file for isolated environments;
+insert run in one transaction with a write lock (SQLite) or an advisory lock
+(PostgreSQL), including for concurrent CLI runs.
+`--database <path>` overrides the SQLite file for isolated environments;
 `--help` lists the options. The script uses Node.js 22.22.3+ and is also included
 in the production image (`npm run user:create-admin -- --username admin`).
 
 ### Chat persistence
 
 Chat dialogues, messages (including tool logs, errors, token usage and page URLs),
-and the signing key now use the same SQLite database. The REST and GraphQL APIs
+and the signing key use the same configured database. The REST and GraphQL APIs
 and guest token format are unchanged. Each appended message and its index data
 are stored in a single row; history is read in insertion order. Tool messages
 remain visible only in administrator history and are excluded from the message index.
@@ -386,7 +478,7 @@ Domain validation belongs to the service that owns the operation. The GraphQL ch
 
 The proxy must preserve errors returned before streaming as well as errors carried inside the stream. Interrupted streams must fail instead of returning a successful partial response. Use a transport-specific fallback only when no readable server message is available. Tests must verify the messages received by callers, including missing, blank, and invalid chat tokens and HTTP/stream failures.
 
-README documentation must be written in English.
+Языковые правила сайта, документации и сообщений коммитов приведены в разделе «Язык проекта».
 
 Transport errors raised before the chat returns an HTTP response (such as invalid header characters or a connection failure) are logged in full on the server. The GraphQL caller receives a readable general request error instead of low-level fetch details. Keep the chat token in the Authorization header, not in the JSON request body. Errors returned by the chat itself retain their original messages.
 

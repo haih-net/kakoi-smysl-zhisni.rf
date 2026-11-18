@@ -25,18 +25,22 @@ export function createChatResponse(
       await once(res, 'drain', { signal: writeSignal })
     }
   }
+
+  const start = (): void => {
+    if (stream && !res.headersSent) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+      res.setHeader('X-Accel-Buffering', 'no')
+      res.flushHeaders()
+    }
+  }
+
   return {
-    start: () => {
-      if (stream && !res.headersSent) {
-        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-        res.setHeader('X-Accel-Buffering', 'no')
-        res.flushHeaders()
-      }
-    },
+    start,
     output: {
       write: async (content, runSignal) => {
         runSignal.throwIfAborted()
         if (stream) {
+          start()
           await write(
             JSON.stringify({ choices: [{ delta: { content } }] }),
             runSignal,
@@ -49,6 +53,7 @@ export function createChatResponse(
         res.json(result)
         return
       }
+      start()
       await write(
         JSON.stringify({
           id: result.id,

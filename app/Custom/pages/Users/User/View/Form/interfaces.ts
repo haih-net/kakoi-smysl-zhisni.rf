@@ -1,5 +1,5 @@
-import type { CurrentUserUpdateInput } from 'app/gql/generated'
-export type UserFormData = CurrentUserUpdateInput
+import type { UpdateCurrentUserMutationVariables } from 'app/gql/generated'
+export type UserFormData = UpdateCurrentUserMutationVariables['data']
 export function validateUserForm(data: UserFormData): Record<string, string> {
   const errors: Record<string, string> = {}
   if (data.username && !/^[a-zA-Z0-9_-]{3,64}$/.test(data.username)) {

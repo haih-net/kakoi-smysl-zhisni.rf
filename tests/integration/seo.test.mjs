@@ -43,3 +43,30 @@ test('unknown SSR route is 404 and noindex without a fabricated canonical or art
   assert.ok(!head.includes('rel="canonical"'))
   assert.ok(!head.includes('BlogPosting'))
 })
+
+test.each([
+  '/calls',
+  '/calls/devices',
+  '/calls/test-room',
+  '/docs',
+  '/docs/video-calls',
+])(
+  'страница %s запрещает индексацию и не показывает закрытые пункты меню гостю',
+  async (path) => {
+    const { createRequestHandler } = await import('react-router')
+    const build = await import('../../build/server/index.js')
+    const response = await createRequestHandler(
+      build,
+      'production',
+    )(new globalThis.Request(new URL(path, site.origin)))
+    assert.equal(response.status, 200)
+    const html = await response.text()
+    const head = headOf(html)
+    const robots = [...head.matchAll(/<meta name="robots" content="([^"]*)"/g)]
+    assert.equal(robots.length, 1)
+    assert.ok(robots[0][1].split(/,\s*/).includes('noindex'))
+    assert.ok(!robots[0][1].split(/,\s*/).includes('index'))
+    const header = html.match(/<header\b[^>]*>([\s\S]*?)<\/header>/)[1]
+    assert.ok(!/href="\/(calls|docs)(?:[/?#"])/.test(header))
+  },
+)

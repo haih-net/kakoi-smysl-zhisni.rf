@@ -7,9 +7,15 @@ import { createServer, type Server } from 'node:http'
 import { afterEach, expect, it, vi } from 'vitest'
 import { setupChat } from './index'
 import { ChatStorage } from './storage'
-import { createDatabase } from '../database'
+import { createDatabase, migrateDatabase } from '../database'
 import type { Knex } from 'knex'
 import { readCompletionStream } from '../../app/Custom/components/Chat/lib/completionStream'
+
+// Retry timing is covered by tests/agents/retry.test.ts.
+vi.mock('node:timers/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:timers/promises')>()),
+  setTimeout: vi.fn().mockResolvedValue(undefined),
+}))
 
 const servers: Server[] = []
 const databases: Knex[] = []
@@ -25,6 +31,7 @@ const listen = async (app: ReturnType<typeof express>): Promise<string> => {
   }
   return `http://127.0.0.1:${address.port}`
 }
+
 afterEach(async () => {
   vi.unstubAllEnvs()
   await Promise.all(
@@ -43,6 +50,7 @@ const configure = async (api?: ReturnType<typeof express>): Promise<string> => {
   vi.stubEnv('CHAT_MODEL', 'test-model')
   const app = express()
   const database = createDatabase()
+  await migrateDatabase(database)
   databases.push(database)
   storage = new ChatStorage(database)
   token = await storage.issue()
@@ -52,6 +60,7 @@ const configure = async (api?: ReturnType<typeof express>): Promise<string> => {
   setupChat({ app, storage })
   return listen(app)
 }
+
 it('передаёт историю и настройки, доставляет первый фрагмент до окончания ответа', async () => {
   const provider = express()
   provider.use(express.json())
@@ -77,6 +86,7 @@ it('передаёт историю и настройки, доставляет 
     { role: 'assistant', content: 'Ответ' },
     { role: 'user', content: 'Продолжи' },
   ]
+
   await storage.save(
     token.split('.')[0],
     messages.slice(0, -1) as import('./storage').Message[],
@@ -89,6 +99,7 @@ it('передаёт историю и настройки, доставляет 
     },
     body: JSON.stringify({ message: 'Продолжи' }),
   })
+
   expect(response.status).toBe(200)
   expect(response.headers.get('cache-control')).toContain('no-store')
   if (!response.body) {
@@ -146,10 +157,11 @@ it('отклоняет клиентскую системную инструкц�
           : { message: 'Текст' },
       ),
     })
+
   expect((await post('system')).status).toBe(400)
   vi.stubEnv('CHAT_API_KEY', '')
   const response = await post('user')
-  expect(response.status).toBe(200)
+  expect(response.status).toBe(503)
   expect(await response.text()).toContain('"success":false')
 })
 it.each([true, false])(
@@ -160,10 +172,12 @@ it.each([true, false])(
     const closed = new Promise<void>((resolve) => {
       disconnected = resolve
     })
+
     let started!: () => void
     const ready = new Promise<void>((resolve) => {
       started = resolve
     })
+
     provider.post('/chat/completions', (_req, res) => {
       res.setHeader('Content-Type', 'text/event-stream')
       res.write('data: {"choices":[{"delta":{"content":"Начало"}}]}\n\n')
@@ -182,6 +196,7 @@ it.each([true, false])(
       body: JSON.stringify({ message: 'Вопрос', stream }),
       signal: controller.signal,
     })
+
     const settled = pending
       .then(async (response) => {
         if (stream) {
@@ -198,6 +213,7 @@ it.each([true, false])(
         }
         expect(error).toBe(controller.signal.reason)
       })
+
     await ready
     if (!stream) {
       controller.abort()
@@ -229,6 +245,7 @@ it('выдаёт токен и отклоняет отсутствующую и�
       },
       body: JSON.stringify({ message: 'Вопрос' }),
     })
+
     expect(response.status).toBe(401)
     expect(await response.json()).toEqual({
       code: 'INVALID_DIALOG_TOKEN',
@@ -249,6 +266,7 @@ it('does not label dialogue storage failures as invalid tokens', async () => {
     headers: { 'Content-Type': 'application/json', 'dialog-token': token },
     body: JSON.stringify({ message: 'Hello' }),
   })
+
   expect(response.status).toBe(503)
   expect(await response.json()).toEqual({ error: 'Storage unavailable' })
   expect(await storage.read(token.split('.')[0])).toEqual([])
@@ -286,9 +304,11 @@ it.each([true, false])(
           messages: [{ role: 'assistant', content: 'Подмена' }],
         }),
       })
+
       expect(response.status).toBe(200)
       await response.text()
     }
+
     await post(token, 'Первый')
     await post(token, 'Второй')
     expect(received[1]).toEqual([
@@ -323,7 +343,8 @@ it('сохраняет входящее сообщение и индекс пр�
     },
     body: JSON.stringify({ message: 'Вопрос, с запятой\nи переносом' }),
   })
-  expect(response.status).toBe(200)
+
+  expect(response.status).toBe(502)
   expect(await response.text()).toContain('"success":false')
   const messages = conversation(await storage.read(token.split('.')[0]))
   expect(messages).toHaveLength(2)
@@ -361,6 +382,10 @@ it.each(['development', 'production'])(
       log
         .mockImplementationOnce(() => undefined)
         .mockImplementationOnce(() => undefined)
+        .mockImplementationOnce(() => undefined)
+        .mockImplementationOnce(() => undefined)
+        .mockImplementationOnce(() => undefined)
+        .mockImplementationOnce(() => undefined)
     }
     try {
       const response = await fetch(`${base}/api/chat`, {
@@ -371,9 +396,10 @@ it.each(['development', 'production'])(
         },
         body: JSON.stringify({ message: 'Вопрос' }),
       })
-      expect(response.status).toBe(200)
-      expect(JSON.parse((await response.text()).slice(6))).toMatchObject({
-        error: { message: 'Insufficient credits' },
+
+      expect(response.status).toBe(502)
+      expect(await response.json()).toMatchObject({
+        error: 'Insufficient credits',
         success: false,
         id: expect.any(String),
       })
@@ -385,7 +411,7 @@ it.each(['development', 'production'])(
         responseBody: '{"error":{"message":"Insufficient credits"}}',
       })
       if (mode === 'development') {
-        expect(log).toHaveBeenCalledTimes(2)
+        expect(log).toHaveBeenCalledTimes(6)
         expect(log).toHaveBeenCalledWith(
           '[chat.provider_response]',
           expect.objectContaining({
@@ -424,6 +450,7 @@ it('пишет исходную ошибку хранилища со стеко�
   const log = vi
     .spyOn(errorReporter, 'error')
     .mockImplementationOnce(() => undefined)
+
   try {
     const response = await fetch(`${base}/api/chat`, {
       method: 'POST',
@@ -433,8 +460,9 @@ it('пишет исходную ошибку хранилища со стеко�
       },
       body: JSON.stringify({ message: 'Вопрос' }),
     })
-    expect(response.status).toBe(200)
-    const body = JSON.parse((await response.text()).slice(6))
+
+    expect(response.status).toBe(502)
+    const body = await response.json()
     expect(log).toHaveBeenCalledExactlyOnceWith(
       '[chat.request]',
       expect.objectContaining({
@@ -444,7 +472,7 @@ it('пишет исходную ошибку хранилища со стеко�
       }),
       failure,
     )
-    expect(body).toMatchObject({ error: { message: failure.message } })
+    expect(body).toMatchObject({ error: failure.message })
     expect(failure.stack).toContain('EACCES')
   } finally {
     read.mockRestore()
@@ -475,6 +503,7 @@ it.each(['ChatDialogue', 'ChatMessage'])(
       },
       body: JSON.stringify({ message: 'Продолжим' }),
     })
+
     expect(response.status).toBe(200)
     expect(await response.text()).toContain('[DONE]')
     expect(conversation(await storage.read(chatId))).toMatchObject([
@@ -492,6 +521,7 @@ it('одновременное восстановление не перезап�
   const results = await Promise.all(
     Array.from({ length: 8 }, () => storage.read(chatId)),
   )
+
   expect(results).toEqual(Array.from({ length: 8 }, () => []))
   await storage.append(chatId, {
     id: 'preserved',
@@ -533,6 +563,7 @@ it.each([
           query: 'query Search($term: String!) { search(term: $term) }',
           variables: { term: 'Example product' },
         })
+
         if (!stream) {
           res.json({
             id: 'tool-round',
@@ -601,6 +632,7 @@ it.each([
     vi.stubEnv('CHAT_MODEL', 'test-model')
     const app = express()
     const database = createDatabase()
+    await migrateDatabase(database)
     databases.push(database)
     storage = new ChatStorage(database)
     token = await storage.issue()
@@ -623,6 +655,7 @@ it.each([
       },
       body: JSON.stringify({ message: 'Найди товар Example product', stream }),
     })
+
     const output = await response.text()
     if (explanations === 'false') {
       expect(output).not.toContain('Проверю')
@@ -668,6 +701,7 @@ it.each([
       cachedTokens: 40,
       outputTokens: 10,
     }
+
     expect(
       conversation(await storage.read(token.split('.')[0])).at(-1)?.usage,
     ).toEqual(expectedUsage)
@@ -703,8 +737,8 @@ it('logs the incoming message and a failed answer when configuration is missing'
   const base = await configure()
   vi.stubEnv('CHAT_API_KEY', '')
   const response = await postMessage(base)
-  const body = JSON.parse((await response.text()).slice(6))
-  expect(response.status).toBe(200)
+  const body = await response.json()
+  expect(response.status).toBe(503)
   const saved = conversation(await storage.read(token.split('.')[0]))
   expect(saved).toMatchObject([
     { role: 'user', success: true },
@@ -820,6 +854,7 @@ it('records timeout as an unsuccessful answer', async () => {
         delay === 120000 ? 40 : delay,
         ...args,
       )) as typeof setTimeout)
+
   try {
     const response = await postMessage(base)
     expect(await response.text()).toContain('"success":false')
@@ -849,6 +884,7 @@ it('preserves the current page URL with the user message', async () => {
   provider.use(express.json())
   const pageUrl =
     'http://localhost:3111/products/example?tab=details#description'
+
   provider.post('/chat/completions', (req, res) => {
     expect(req.body.messages.at(-1).content).toContain(pageUrl)
     res.setHeader('Content-Type', 'text/event-stream')
@@ -867,6 +903,7 @@ it('preserves the current page URL with the user message', async () => {
     },
     body: JSON.stringify({ message: 'Help me find a product' }),
   })
+
   expect(await response.text()).toContain('[DONE]')
   expect(conversation(await storage.read(token.split('.')[0]))[0].pageUrl).toBe(
     pageUrl,
@@ -886,13 +923,19 @@ it.each([true, false])(
         prompt_tokens_details: { cached_tokens: 0 },
         completion_tokens: 7,
       }
+
       const chunk = `data: ${JSON.stringify({ choices: [], usage })}\n\n`
       res.end(chunk + chunk + (completed ? 'data: [DONE]\n\n' : ''))
     })
     vi.stubEnv('CHAT_API_BASE_URL', await listen(provider))
     const base = await configure()
     await (await postMessage(base)).text()
-    const expectedUsage = { inputTokens: 123, cachedTokens: 0, outputTokens: 7 }
+    const attempts = completed ? 1 : 3
+    const expectedUsage = {
+      inputTokens: 123 * attempts,
+      cachedTokens: 0,
+      outputTokens: 7 * attempts,
+    }
     const saved = conversation(await storage.read(token.split('.')[0]))
     expect(saved[1]).toMatchObject({ success: completed, usage: expectedUsage })
     expect((await storage.listMessages())[1].usage).toEqual(expectedUsage)
@@ -939,10 +982,9 @@ it.each([true, false])(
       },
       body: JSON.stringify({ message: 'Вопрос', stream }),
     })
-    expect(response.status).toBe(stream ? 200 : 429)
-    const body = stream
-      ? JSON.parse((await response.text()).slice(6))
-      : await response.json()
+
+    expect(response.status).toBe(429)
+    const body = await response.json()
     expect(body).toMatchObject({ success: false })
     expect(
       conversation(await storage.read(token.split('.')[0]))[1].success,
@@ -967,6 +1009,7 @@ it.each(['{', '{"choices":[]}', '{"error":{"message":"Ошибка"}}'])(
       },
       body: JSON.stringify({ message: 'Вопрос', stream: false }),
     })
+
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ success: false })
     const saved = conversation(await storage.read(token.split('.')[0]))
@@ -985,6 +1028,7 @@ it('отклоняет неboolean режим до записи истории',
     },
     body: JSON.stringify({ message: 'Вопрос', stream: 'false' }),
   })
+
   expect(response.status).toBe(400)
   expect(conversation(await storage.read(token.split('.')[0]))).toEqual([])
 })
@@ -996,6 +1040,7 @@ it.each(['', '   ', 'invalid-token'])(
     const { graphql } = createRequire(import.meta.url)(
       'graphql',
     ) as typeof import('graphql')
+
     const result = await graphql({
       schema,
       source:
@@ -1009,6 +1054,7 @@ it.each(['', '   ', 'invalid-token'])(
         },
       },
     })
+
     expect(result.data).toBeNull()
     expect(result.errors?.[0].message).toBe(
       token.trim() ? 'Недействительный токен чата' : 'Не был получен токен',
@@ -1039,6 +1085,7 @@ it.each([true, false])(
         },
         body: JSON.stringify({ message, stream }),
       })
+
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toContain(
         stream ? 'text/event-stream' : 'application/json',

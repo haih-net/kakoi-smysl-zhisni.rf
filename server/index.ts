@@ -1,9 +1,11 @@
 import './env'
-import { db } from './database'
+import { setupCallSignaling } from './schema/types/CallRoom/helpers/setupCallSignaling'
+import { db, migrateDatabase } from './database'
 import express, { type ErrorRequestHandler } from 'express'
 import { logDevError } from './errorLogging'
 import { setupChat } from './chat'
 import { createServer } from 'node:http'
+import { listen, getServerUrls } from './listen'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { logEvent, startMetricsServer } from './observability'
@@ -12,15 +14,16 @@ import type { ViteDevServer } from 'vite'
 
 import { setupMedia } from './schema/types/media'
 import { setupSitemap } from './sitemap'
+import { setupClientCertificate } from './middleware/clientCertificate'
 
 import { setupGraphqlMiddleware } from './middleware/graphql'
 import { imageResizerMiddleware } from './middleware/imageResizer'
 
 const dev = process.env.NODE_ENV === 'development'
-const port = Number(process.env.PORT || 3000)
 
 let stopGraphql: (() => Promise<void>) | null = null
 let vite: ViteDevServer | null = null
+let stopCalls: (() => void) | null = null
 let stopping = false
 let metricsServer: ReturnType<typeof startMetricsServer> = null
 
@@ -38,6 +41,7 @@ function setupShutdown(server: ReturnType<typeof createServer>) {
 
     try {
       metricsServer?.close()
+      stopCalls?.()
 
       if (stopGraphql) {
         await stopGraphql()
@@ -61,11 +65,13 @@ function setupShutdown(server: ReturnType<typeof createServer>) {
 }
 
 async function startServer() {
+  await migrateDatabase(db)
   await db.raw('SELECT 1')
   const app = express()
   app.set('trust proxy', true)
   app.disable('x-powered-by')
 
+  setupClientCertificate(app, db)
   setupSitemap(app)
   setupChat({ app, storage: undefined })
 
@@ -74,6 +80,7 @@ async function startServer() {
   setupMedia(app)
 
   const httpServer = createServer(app)
+  stopCalls = setupCallSignaling(httpServer, db)
 
   // GraphQL middleware
   stopGraphql = await setupGraphqlMiddleware(app, httpServer)
@@ -114,6 +121,7 @@ async function startServer() {
     const buildUrl: string = pathToFileURL(
       resolve('build/server/index.js'),
     ).href
+
     const build: ServerBuild = (await import(buildUrl)) as ServerBuild
     app.all('/{*splat}', createRequestHandler({ build }))
   }
@@ -122,14 +130,15 @@ async function startServer() {
     logDevError('http.error', error, { method: req.method, path: req.path })
     next(error)
   }
+
   app.use(logRequestError)
 
   metricsServer = startMetricsServer()
   setupShutdown(httpServer)
 
-  httpServer.listen(port, '0.0.0.0', () => {
-    logEvent('info', 'server_ready', { port })
-  })
+  const port = await listen(httpServer, Number(process.env.PORT || 3000))
+  logEvent('info', 'server_ready', { port })
+  process.stdout.write(`Сайт доступен: ${getServerUrls(port).join('\n')}\n`)
 }
 
 startServer().catch((err) => {

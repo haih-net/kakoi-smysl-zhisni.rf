@@ -35,6 +35,7 @@ function serveShared(): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
+    cacheDir: `node_modules/.vite/${process.env.PORT || env.PORT || '3000'}`,
     build: { assetsDir: env.BUILD_ASSETS_DIR || 'assets' },
     resolve: {
       alias: {
@@ -50,7 +51,14 @@ export default defineConfig(({ mode }) => {
     ],
     server: {
       watch: {
-        ignored: ['**/build/**'],
+        ignored: [
+          resolve(import.meta.dirname, 'server/database/data/**'),
+          resolve(import.meta.dirname, 'build/**'),
+          resolve(import.meta.dirname, 'shared/**'),
+          resolve(import.meta.dirname, 'storage/**'),
+          resolve(import.meta.dirname, 'uploads/**'),
+          resolve(import.meta.dirname, 'docker/**'),
+        ],
       },
       fs: {
         deny: [
@@ -59,6 +67,7 @@ export default defineConfig(({ mode }) => {
           '*.{crt,pem}',
           '**/.git/**',
           '**/storage/**',
+          '**/docker/traefik/certs/**',
           '**/server/database/data/**',
         ],
       },
@@ -74,9 +83,6 @@ export default defineConfig(({ mode }) => {
       ),
       'process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME': JSON.stringify(
         env.NEXT_PUBLIC_TELEGRAM_BOT_NAME || '',
-      ),
-      'import.meta.env.BETTERLYTICS_SITE_ID': JSON.stringify(
-        env.BETTERLYTICS_SITE_ID || '',
       ),
     },
   }

@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import type { Request } from 'express'
 import type { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createDatabase } from '../../database'
+import { createDatabase, migrateDatabase } from '../../database'
 import { createContext } from '../../context'
 import { chatStorage, ChatStorage } from '../../chat/storage'
 import { createToken } from '../types/User/helpers/auth'
@@ -26,6 +26,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
     beforeEach(async () => {
       vi.stubEnv('JWT_SECRET', 'chat-permissions-test-secret')
       db = createDatabase()
+      await migrateDatabase(db)
       const storage = new ChatStorage(db)
       token = await storage.issue()
       otherToken = await storage.issue()
@@ -39,6 +40,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
             sudo: kind === 'sudo',
           })
           .returning('*')
+
         authToken = await createToken(user, db)
       }
       for (const id of [chatId, otherToken.split('.')[0]]) {
@@ -89,6 +91,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
         } as Request,
         db,
       )
+
       if (bearer === authToken) {
         expect(contextValue.currentUser?.sudo ?? null).toBe(
           kind === 'guest' ? null : kind === 'sudo',
@@ -104,6 +107,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
 
     const history =
       'query($id:String!,$token:String){chatMessages(chatId:$id,token:$token){id role content}}'
+
     const single =
       'query($id:String!,$token:String,$message:String!){chatMessage(chatId:$id,token:$token,messageId:$message){id role content}}'
 
@@ -116,6 +120,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
           invalid: `${token}bad`,
           missing: undefined,
         }[access]
+
         const allowed = kind === 'sudo' || access === 'own'
         for (const source of [history, single]) {
           const result = await execute(source, {
@@ -123,6 +128,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
             token: supplied,
             message: 'user',
           })
+
           if (allowed) {
             expect(result.errors).toBeUndefined()
             if (source === history) {
@@ -195,6 +201,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
     }`,
         { id: chatId, other: otherToken.split('.')[0], token },
       )
+
       expect(result.data?.own).toEqual({ content: `${chatId}:user` })
       if (kind === 'sudo') {
         expect(result.errors).toBeUndefined()
@@ -218,6 +225,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
           null,
           token,
         )
+
         expect(result.errors).toBeUndefined()
         const denied = await execute(
           source,
@@ -225,6 +233,7 @@ describe.each(['guest', 'authenticated', 'sudo'] as const)(
           null,
           token,
         )
+
         expect(denied.errors?.[0].message).toBe('Доступ запрещён')
       }
     })

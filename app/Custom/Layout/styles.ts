@@ -2,13 +2,7 @@ import { styled } from '@linaria/react'
 import { theme } from '../theme'
 
 export const CustomLayoutSectionStyled = styled.section`
-  max-width: 1328px;
-  padding: 44px 24px;
-  margin: auto;
-
-  @media (min-width: ${theme.breakpoints.sm}px) {
-    padding: 64px 40px;
-  }
+  display: contents;
 `
 
 export const CustomLayoutGridStyled = styled.section`
@@ -28,7 +22,24 @@ export const CustomLayoutGridStyled = styled.section`
 
 export const CustomLayoutMainStyled = styled.main`
   flex: 1;
+  width: 100%;
   min-width: 0;
+  max-width: 1328px;
+  min-height: 0;
+  padding: 44px 24px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  @media (min-width: ${theme.breakpoints.sm}px) {
+    padding: 64px 40px;
+  }
+
+  &[data-home='true'] {
+    max-width: none;
+    padding: 0;
+  }
 `
 
 export const CustomLayoutStyled = styled.div`
@@ -64,73 +75,5 @@ export const CustomLayoutStyled = styled.div`
   }
   .skip-link:focus {
     top: 12px;
-  }
-`
-
-export const HtmlStyled = styled.html`
-  font-family: ${theme.font};
-  color: ${theme.colors.foreground};
-  background: ${theme.backgrounds.page};
-  line-height: 1.6;
-  font-size: 16px;
-  -webkit-font-smoothing: antialiased;
-  scroll-padding-top: 112px;
-  ::selection {
-    background: ${theme.colors.accentSoft};
-    color: ${theme.colors.foreground};
-  }
-  :where(h1, h2, h3) {
-    font-weight: 400;
-    line-height: 1.2;
-  }
-  body {
-    margin: 0;
-  }
-  *,
-  *::before,
-  *::after {
-    box-sizing: border-box;
-    outline: none;
-  }
-  :where(h1, h2, h3, h4, p, ul) {
-    margin: 0;
-    padding: 0;
-  }
-  button,
-  input,
-  textarea,
-  select {
-    font: inherit;
-  }
-  button {
-    touch-action: manipulation;
-  }
-  button:enabled {
-    cursor: pointer;
-  }
-  button:disabled {
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-  img {
-    max-width: 100%;
-  }
-  a {
-    color: ${theme.colors.primary};
-    text-decoration: none;
-    text-underline-offset: 0.2em;
-    text-decoration-thickness: 1px;
-  }
-  a:hover {
-    text-decoration: underline;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      scroll-behavior: auto !important;
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
-    }
   }
 `

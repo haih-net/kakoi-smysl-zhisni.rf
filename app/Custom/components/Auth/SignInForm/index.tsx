@@ -1,3 +1,4 @@
+import { TextField } from '../../controls/TextField'
 import React, { useCallback, useId, useRef, useState } from 'react'
 import {
   Controller,
@@ -33,7 +34,9 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     reValidateMode: 'onChange',
     resolver: yupResolver(signInSchema),
   })
-  const disabled = loading || form.formState.isSubmitting
+
+  const [certificatePending, setCertificatePending] = useState(false)
+  const disabled = loading || certificatePending || form.formState.isSubmitting
 
   const onSubmit = useCallback(
     async ({ username, password }: SignInFormData): Promise<void> => {
@@ -49,6 +52,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
             data: { password },
           },
         })
+
         const response = data?.response
         if (!response?.success || !response.token) {
           setError('Неверный логин или пароль.')
@@ -66,6 +70,57 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     [loading, signin, client, onSuccessHandler],
   )
 
+  const certificateSignIn = useCallback(async () => {
+    if (pending.current) {
+      return
+    }
+    pending.current = true
+    setCertificatePending(true)
+    setError(null)
+    try {
+      const request = async (force: boolean) => {
+        const response = await fetch('/api/client-certificate/signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force }),
+        })
+
+        const result = await response.json()
+        if (!response.ok) {
+          throw new Error(result.message)
+        }
+        return result
+      }
+
+      let result = await request(false)
+      if (result.kind === 'confirm') {
+        if (
+          !window.confirm(
+            'На сайте уже есть пользователь с правами sudo. Создать ещё одного?',
+          )
+        ) {
+          return
+        }
+        result = await request(true)
+      }
+      if (typeof result.token !== 'string') {
+        throw new Error('Не удалось войти по сертификату.')
+      }
+      localStorage.setItem('token', result.token)
+      await client.resetStore()
+      onSuccessHandler?.({ success: true, token: result.token })
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Не удалось войти по сертификату.',
+      )
+    } finally {
+      pending.current = false
+      setCertificatePending(false)
+    }
+  }, [client, onSuccessHandler])
+
   const fieldRenderer = useCallback<ControllerProps<SignInFormData>['render']>(
     ({ field, fieldState: { error } }) => {
       const isPassword = field.name === 'password'
@@ -75,7 +130,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
           <label htmlFor={fieldId}>
             {isPassword ? 'Пароль' : 'Логин или электронная почта'}
           </label>
-          <input
+          <TextField
             {...field}
             id={fieldId}
             type={isPassword ? 'password' : 'text'}
@@ -119,6 +174,11 @@ export const SignInForm: React.FC<SignInFormProps> = ({
         <Button type="submit" disabled={disabled}>
           {disabled ? 'Вход…' : 'Войти'}
         </Button>
+        {import.meta.env.VITE_CLIENT_CERT_LOGIN === 'true' && (
+          <Button type="button" disabled={disabled} onClick={certificateSignIn}>
+            Войти по сертификату
+          </Button>
+        )}
       </FormProvider>
     </SignInFormStyled>
   )

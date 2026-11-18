@@ -1,7 +1,9 @@
 import { builder } from './builder'
 import './statistics'
+import './types/PageError'
 
 import './types/User'
+import './types/CallRoom'
 import './types/EthAccount'
 import './types/KBConcept'
 import './types/files'

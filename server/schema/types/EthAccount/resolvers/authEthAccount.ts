@@ -1,3 +1,4 @@
+import { lockDatabaseWrite } from '../../../../database/lock'
 import { randomUUID } from 'node:crypto'
 import { builder, type Context } from '../../../builder'
 import { EthAccountAuthInput, EthAccountAuthPayload } from '../inputs'
@@ -42,12 +43,14 @@ export async function authEthAccount(
   }
   const normalizedAddress = normalizeAddress(address)
   return ctx.db.transaction(async (db) => {
+    await lockDatabaseWrite(db, `wallet:${normalizedAddress}`)
     // Claim the challenge inside the transaction so concurrent replays cannot sign in.
     const consumed = await db<TokenRecord>('Token')
       .where({ id: nonceId })
       .whereNull('userId')
       .where('expiredAt', '>', new Date())
       .delete()
+
     if (consumed !== 1) {
       return {
         success: false,
@@ -60,6 +63,7 @@ export async function authEthAccount(
     const account = await db<EthAccountRecord>('EthAccount')
       .where({ address: normalizedAddress })
       .first()
+
     if (
       ctx.currentUser &&
       account?.userId &&
@@ -89,6 +93,7 @@ export async function authEthAccount(
       const existingWallet = await db<EthAccountRecord>('EthAccount')
         .where({ userId })
         .first()
+
       if (existingWallet && existingWallet.id !== account?.id) {
         throw new Error('К учётной записи уже привязан кошелёк')
       }

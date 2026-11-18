@@ -11,14 +11,14 @@ import {
 import { useApollo } from 'app/gql/apolloClient'
 import { UserStatusEnum } from 'app/gql/generated'
 import { AppContextProvider } from './index'
-import { useAppContext } from '../../hooks/useAppContext'
+import { useAppContext } from 'app/Custom/components/AppContext'
 import { App } from '../pages/_App'
 
 vi.mock('app/gql/apolloClient', () => ({ useApollo: vi.fn() }))
 afterEach(cleanup)
 
 const Consumer: React.FC = () => {
-  const { user, userLoading } = useAppContext()
+  const { user, userLoading = true } = useAppContext() ?? {}
   return <output>{userLoading ? 'loading' : (user?.id ?? 'anonymous')}</output>
 }
 
@@ -29,6 +29,7 @@ describe('shared application context', () => {
         <Consumer />
       </AppContextProvider>,
     )
+
     expect(screen.getByText('loading')).toBeTruthy()
     view.rerender(
       <AppContextProvider
@@ -62,6 +63,7 @@ describe('shared application context', () => {
                   me: {
                     __typename: 'User',
                     id: 'owner',
+                    email: null,
                     username: 'owner',
                     fullname: 'Owner',
                     sudo: false,
@@ -72,6 +74,7 @@ describe('shared application context', () => {
                     image: null,
                     content: null,
                     intro: null,
+                    certificateFingerprints: [],
                     EthAccount: null,
                     TelegramAccount: null,
                     Balance: null,
@@ -83,6 +86,7 @@ describe('shared application context', () => {
           }),
       ),
     })
+
     vi.mocked(useApollo).mockReturnValue(client)
     try {
       render(

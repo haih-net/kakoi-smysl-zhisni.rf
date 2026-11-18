@@ -12,15 +12,18 @@ it('allows ten nested stages, rejects the eleventh and records the parent chain'
     'request',
     new AbortController().signal,
   )
+
   const nested = (count: number): Promise<string> =>
     execution.run('step', { count }, async () =>
       count === 1 ? 'done' : nested(count - 1),
     )
+
   expect(await nested(10)).toBe('done')
   await expect(nested(11)).rejects.toBeInstanceOf(DepthLimitError)
   const records = (await storage.read('same-dialogue')).map(({ content }) =>
     JSON.parse(content),
   )
+
   expect(records.slice(0, 10).map(({ depth }) => depth)).toEqual([
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
   ])
@@ -46,6 +49,7 @@ it('limits recursive agent pipelines before any provider request is needed', asy
     storage,
     config: { apiKey: undefined, model: undefined },
   })
+
   await expect(
     new ChatAgent().run(request, 'test-token', context),
   ).rejects.toThrow('Maximum execution depth 10 exceeded')
@@ -54,6 +58,7 @@ it('limits recursive agent pipelines before any provider request is needed', asy
     .filter(({ role }) => role === 'tool_call')
     .map(({ content }) => JSON.parse(content))
     .filter(({ kind }) => kind === 'execution')
+
   expect(records.some(({ function: call }) => call.name === 'llm')).toBe(false)
   expect(records.at(-1).depth).toBe(11)
   expect(history.filter(({ role }) => role === 'user')).toHaveLength(1)

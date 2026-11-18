@@ -15,6 +15,7 @@ const colors = {
   foreground: '#252b30',
   background: '#ffffff',
   muted: '#9ca3af',
+  link: '#0042ad',
 
   // States
   success: '#10b981',
@@ -67,6 +68,7 @@ const backgrounds = {
 } as const
 
 export const theme = {
+  outline: 'none',
   font: "Georgia, 'Times New Roman', serif",
   fontUi: 'Arial, Helvetica, sans-serif',
   readingWidth: '720px',

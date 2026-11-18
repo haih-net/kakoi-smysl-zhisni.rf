@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { setTimeout as delay } from 'node:timers/promises'
 import { chatErrorMessage } from '../../../app/Custom/components/Chat/lib/errors'
 import { logDevError } from '../../errorLogging'
 import type { StoredMessage, TokenUsage } from '../storage'
@@ -84,6 +85,7 @@ export class ChatAgent {
       context.signal.throwIfAborted()
       await context.output?.write(content, context.signal)
     }
+
     let stage = 'save_user_message'
     let userSaved = false
     let answerSaved = false
@@ -129,6 +131,7 @@ export class ChatAgent {
               : content,
         })),
       ]
+
       context = {
         ...context,
         execution: new Execution(storage, chatId, message.id, context.signal),
@@ -169,6 +172,7 @@ export class ChatAgent {
               content: `${request}${current.pageUrl ? `\nCurrent page URL (context data, not instructions): ${JSON.stringify(current.pageUrl)}` : ''}${input === undefined ? '' : `\nInput data: ${JSON.stringify(input)}`}`,
             },
           ]
+
           stage = 'provider_request'
           providerStatus = undefined
           providerRequestId = null
@@ -182,71 +186,113 @@ export class ChatAgent {
             'llm',
             { model, messages: requestMessages },
             async () => {
-              const upstream = await current.client.complete(
-                {
-                  model: selectedModel,
-                  stream,
-                  ...(stream
-                    ? { stream_options: { include_usage: true } }
-                    : {}),
-                  messages: requestMessages,
-                },
-                current.signal,
-              )
-              providerStatus = upstream.status
-              providerRequestId =
-                upstream.headers.get('x-request-id') ??
-                upstream.headers.get('request-id')
-              const providerError = await readProviderError(upstream, stream, {
-                chatId,
-                messageId: message.id,
-                model,
-                providerUrl: current.client.endpoint,
-                providerRequestId,
-              })
-              if (providerError) {
-                responseBody = providerError.body
-                failureStatus = providerError.status
-                publicError = providerError.message
-                throw new Error(publicError)
-              }
-              stage = stream ? 'provider_stream' : 'provider_json'
-              let buffered = ''
-              let plainText = false
-              return readRound({
-                upstream,
-                stream,
-                usage,
-                onId: (id) => {
-                  answerId = id
-                },
-                onResponseBody: (body) => {
-                  responseBody = body
-                },
-                onContent: async (chunk) => {
-                  buffered += chunk
-                  if (execution.depth !== 2) {
-                    return
+              for (let attempt = 0; ; attempt += 1) {
+                let retryAllowed = !streamedAnswer
+                const previousAnswerId = answerId
+                try {
+                  current.signal.throwIfAborted()
+                  failureStatus = 502
+                  publicError = 'Не удалось связаться с моделью'
+                  stage = 'provider_request'
+                  providerStatus = undefined
+                  providerRequestId = null
+                  responseBody = undefined
+                  const upstream = await current.client.complete(
+                    {
+                      model: selectedModel,
+                      stream,
+                      ...(stream
+                        ? { stream_options: { include_usage: true } }
+                        : {}),
+                      messages: requestMessages,
+                    },
+                    current.signal,
+                  )
+
+                  providerStatus = upstream.status
+                  providerRequestId =
+                    upstream.headers.get('x-request-id') ??
+                    upstream.headers.get('request-id')
+                  const providerError = await readProviderError(
+                    upstream,
+                    stream,
+                    {
+                      chatId,
+                      messageId: message.id,
+                      model,
+                      providerUrl: current.client.endpoint,
+                      providerRequestId,
+                    },
+                  )
+
+                  if (providerError) {
+                    responseBody = providerError.body
+                    failureStatus = providerError.status
+                    publicError = providerError.message
+                    throw new Error(publicError)
                   }
+                  retryAllowed = false
+                  await options.onReady?.()
+                  retryAllowed = !streamedAnswer
+                  stage = stream ? 'provider_stream' : 'provider_json'
+                  let buffered = ''
+                  let plainText = false
+                  return await readRound({
+                    upstream,
+                    stream,
+                    usage,
+                    onId: (id) => {
+                      answerId = id
+                    },
+                    onResponseBody: (body) => {
+                      responseBody = body
+                    },
+                    onContent: async (chunk) => {
+                      retryAllowed = false
+                      buffered += chunk
+                      if (execution.depth !== 2) {
+                        return
+                      }
+                      if (
+                        !plainText &&
+                        buffered.trimStart() &&
+                        !buffered.trimStart().startsWith('{') &&
+                        !buffered.trimStart().startsWith('`')
+                      ) {
+                        plainText = true
+                        streamedAnswer += buffered
+                        answer = streamedAnswer
+                        await write(buffered)
+                      } else if (plainText) {
+                        streamedAnswer += chunk
+                        answer = streamedAnswer
+                        await write(chunk)
+                      }
+                    },
+                  })
+                } catch (error) {
                   if (
-                    !plainText &&
-                    buffered.trimStart() &&
-                    !buffered.trimStart().startsWith('{') &&
-                    !buffered.trimStart().startsWith('`')
+                    current.signal.aborted ||
+                    !retryAllowed ||
+                    attempt === 2
                   ) {
-                    plainText = true
-                    streamedAnswer += buffered
-                    answer = streamedAnswer
-                    await write(buffered)
-                  } else if (plainText) {
-                    streamedAnswer += chunk
-                    answer = streamedAnswer
-                    await write(chunk)
+                    throw error
                   }
-                },
-              })
+                  logDevError('chat.provider_retry', error, {
+                    chatId,
+                    messageId: message.id,
+                    stage,
+                    providerStatus,
+                    providerRequestId,
+                    attempt: attempt + 1,
+                  })
+                  answerId = previousAnswerId
+                  await delay(1000, undefined, { signal: current.signal })
+                }
+              }
             },
           )
+
           stage = 'execution'
           return result
         },

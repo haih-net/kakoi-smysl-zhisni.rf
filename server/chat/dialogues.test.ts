@@ -2,17 +2,19 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import Database from 'better-sqlite3'
-import { createDatabase } from '../database'
+import { createDatabase, migrateDatabase } from '../database'
 import { initializeSchema } from '../database/schema'
 import { ChatStorage } from './storage'
 
 const databases: ReturnType<typeof createDatabase>[] = []
 const directories: string[] = []
-const createStorage = (): ChatStorage => {
+const createStorage = async (): Promise<ChatStorage> => {
   const database = createDatabase()
+  await migrateDatabase(database)
   databases.push(database)
   return new ChatStorage(database)
 }
+
 afterEach(async () => {
   await Promise.all(databases.splice(0).map((database) => database.destroy()))
   await Promise.all(
@@ -24,7 +26,7 @@ afterEach(async () => {
 })
 
 it('lists empty dialogues newest first with a stable tie breaker', async () => {
-  const storage = createStorage()
+  const storage = await createStorage()
   expect(await storage.listDialogues()).toEqual([])
   for (const [chatId, createdAt] of [
     ['a'.repeat(48), 1],
@@ -46,7 +48,7 @@ it('persists tokens and history across database reopening', async () => {
   const directory = await mkdtemp('server/database/data/chat-test-')
   directories.push(directory)
   vi.stubEnv('DATABASE_FILENAME', join(directory, 'chat.sqlite'))
-  const first = createStorage()
+  const first = await createStorage()
   const token = await first.issue()
   const chatId = token.split('.')[0]
   const message = {
@@ -59,9 +61,10 @@ it('persists tokens and history across database reopening', async () => {
     replyToId: 'question',
     pageUrl: '/page',
   }
+
   await first.append(chatId, message)
   await first.database.destroy()
-  const second = createStorage()
+  const second = await createStorage()
   expect(await second.verify(`Bearer ${token}`)).toBe(chatId)
   expect(await second.read(chatId)).toEqual([message])
   expect(await second.listMessages()).toMatchObject([
@@ -73,8 +76,8 @@ it('does not lose concurrent writes from separate database connections', async (
   const directory = await mkdtemp('server/database/data/chat-test-')
   directories.push(directory)
   vi.stubEnv('DATABASE_FILENAME', join(directory, 'chat.sqlite'))
-  const first = createStorage()
-  const second = createStorage()
+  const first = await createStorage()
+  const second = await createStorage()
   const tokens = await Promise.all([first.issue(), second.issue()])
   expect(await second.verify(`Bearer ${tokens[0]}`)).toBe(
     tokens[0].split('.')[0],
@@ -106,7 +109,10 @@ it('upgrades schema version 1 without changing existing records and rejects unkn
   try {
     initializeSchema(connection)
     connection.exec(
-      `DROP TABLE EthTransaction;
+      `DROP TABLE ClientCertificateAccount;
+      DROP TABLE PageErrorEvent;
+      DROP TABLE PageError;
+      DROP TABLE EthTransaction;
       DROP TABLE "Transaction";
       DROP INDEX TelegramAccount_externalKey;
       ALTER TABLE TelegramAccount DROP COLUMN externalKey;
@@ -114,7 +120,7 @@ it('upgrades schema version 1 without changing existing records and rejects unkn
     )
     initializeSchema(connection)
     initializeSchema(connection)
-    expect(connection.pragma('user_version', { simple: true })).toBe(4)
+    expect(connection.pragma('user_version', { simple: true })).toBe(9)
     expect(connection.prepare('SELECT id FROM User').all()).toEqual([
       { id: 'existing' },
     ])

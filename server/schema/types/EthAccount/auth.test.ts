@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import type { Knex } from 'knex'
-import { createDatabase } from '../../../database'
+import { createDatabase, migrateDatabase } from '../../../database'
 import jwt from 'jsonwebtoken'
 import { Wallet } from 'ethers'
 import {
@@ -25,6 +25,7 @@ import { generateNonce, buildSignMessage } from './helpers/crypto'
 const { graphql } = createRequire(import.meta.url)(
   'graphql',
 ) as typeof import('graphql')
+
 const secret = 'isolated-ethereum-auth-test-secret'
 let db: Knex
 const wallet = Wallet.createRandom()
@@ -33,6 +34,7 @@ async function addUser(): Promise<UserRecord> {
   const [user] = await db<UserRecord>('User')
     .insert({ id: randomUUID() })
     .returning('*')
+
   return user
 }
 async function challenge(signer = wallet) {
@@ -61,6 +63,7 @@ async function referral(userId: string, expired = false): Promise<string> {
 describe('Ethereum authentication against SQLite', () => {
   beforeAll(async () => {
     db = createDatabase()
+    await migrateDatabase(db)
     await db.raw('SELECT 1')
   })
   beforeEach(async () => {
@@ -83,6 +86,7 @@ describe('Ethereum authentication against SQLite', () => {
       variableValues: { address: wallet.address },
       contextValue: context(),
     })
+
     expect(result.errors).toBeUndefined()
     expect(result.data?.ethAccountNonce).toMatchObject({
       nonce: expect.any(String),
@@ -92,12 +96,14 @@ describe('Ethereum authentication against SQLite', () => {
       nonce: string
       message: string
     }
+
     expect(challenge.message).toContain(challenge.nonce)
     const invalid = await graphql({
       schema,
       source: 'mutation{ethAccountNonce(address:"invalid"){nonce}}',
       contextValue: context(),
     })
+
     expect(invalid.errors?.[0].message).toBe('Некорректный адрес Ethereum')
   })
 
@@ -124,6 +130,7 @@ describe('Ethereum authentication against SQLite', () => {
       variableValues: { data: await challenge() },
       contextValue: context(),
     })
+
     expect(result.errors?.[0].message).toBe(
       'Для регистрации требуется токен приглашения',
     )
@@ -137,6 +144,7 @@ describe('Ethereum authentication against SQLite', () => {
       { ...(await challenge()), referrerToken: await referral(owner.id) },
       context(),
     )
+
     expect(result.success).toBe(true)
     const account = await db('EthAccount').first()
     expect(
@@ -226,6 +234,7 @@ describe('Ethereum authentication against SQLite', () => {
       authEthAccount(data, context()),
       authEthAccount(data, context()),
     ])
+
     expect(results.filter((result) => result.success)).toHaveLength(1)
     expect(await db('User')).toHaveLength(1)
     expect(await db('Token').whereNotNull('userId')).toHaveLength(1)
@@ -238,6 +247,7 @@ describe('Ethereum authentication against SQLite', () => {
     const results = await Promise.all(
       data.map((item) => authEthAccount(item, context())),
     )
+
     expect(results.every((result) => result.success)).toBe(true)
     expect(await db('User')).toHaveLength(1)
     expect(await db('EthAccount')).toHaveLength(1)

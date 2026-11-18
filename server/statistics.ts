@@ -1,3 +1,6 @@
+import type { Knex } from 'knex'
+import { db } from './database'
+import { recordPageError } from './schema/types/PageError/storage'
 import { GraphQLError } from 'graphql'
 import type { Request } from 'express'
 import {
@@ -19,10 +22,13 @@ interface SavedStatistic {
 }
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
+
 const validId = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{24}$/.test(value)
+
 const text = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length <= max
+
 const httpUrl = (value: unknown): value is string => {
   if (!text(value, 4096)) {
     return false
@@ -33,6 +39,7 @@ const httpUrl = (value: unknown): value is string => {
     return false
   }
 }
+
 const dimension = (value: unknown): value is number =>
   typeof value === 'number' &&
   Number.isInteger(value) &&
@@ -97,6 +104,7 @@ const validatePacket = (data: unknown): StatisticsPacket => {
         ? { error: { name: event.error.name, message: event.error.message } }
         : {}),
     }
+
     return { visitorId: data.visitorId, tabId: data.tabId, events: [chat] }
   }
   if (
@@ -133,6 +141,7 @@ const validatePacket = (data: unknown): StatisticsPacket => {
     language: event.language,
     viewport: { width: event.viewport.width, height: event.viewport.height },
   }
+
   return { visitorId: data.visitorId, tabId: data.tabId, events: [visit] }
 }
 
@@ -144,14 +153,18 @@ const unavailable = (): GraphQLError =>
 export const logStatistics = async (
   data: unknown,
   req: Request,
+  database: Knex = db,
 ): Promise<SavedStatistic[] | null> => {
   const endpoint: string | undefined = process.env.AGENTS_CENTER_ENDPOINT
   const token: string | undefined = process.env.AGENTS_CENTER_TOKEN
-  if (!endpoint || !token) {
-    return null
-  }
   const packet: StatisticsPacket = validatePacket(data)
   const event = packet.events[0]
+  if (event.eventId === 'page.viewed') {
+    await recordPageError(database, event)
+  }
+  if (!endpoint || !token) {
+    return [{ id: event.eventKey }]
+  }
   const requestReferer: string | undefined = req.get('referer')?.slice(0, 4096)
   let response: Response
   let body: unknown
@@ -217,6 +230,7 @@ export const logStatistics = async (
           (isRecord(error.extensions) &&
             error.extensions.code === 'UNAUTHENTICATED')),
     )
+
     throw new GraphQLError(
       authFailed
         ? 'Statistics integration credentials rejected.'

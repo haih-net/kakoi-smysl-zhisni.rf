@@ -36,6 +36,7 @@ interface ConceptFileRecord {
 const Visibility = builder.enumType('KBConceptVisibility', {
   values: ['public', 'hidden', 'unpublished'] as const,
 })
+
 const StringFilter = builder.inputType('KBConceptStringFilter', {
   fields: (t) => ({
     equals: t.string(),
@@ -44,12 +45,14 @@ const StringFilter = builder.inputType('KBConceptStringFilter', {
     in: t.stringList(),
   }),
 })
+
 const Coordinates = builder.inputType('CoordsInput', {
   fields: (t) => ({
     lat: t.float({ required: true }),
     lng: t.float({ required: true }),
   }),
 })
+
 const Where = builder.inputType('KBConceptWhereInput', {
   fields: (t) => ({
     id: t.field({ type: StringFilter }),
@@ -65,9 +68,11 @@ const Where = builder.inputType('KBConceptWhereInput', {
     visibility: t.field({ type: Visibility }),
   }),
 })
+
 const SortOrder = builder.enumType('SortOrder', {
   values: ['asc', 'desc'] as const,
 })
+
 const OrderBy = builder.inputType('KBConceptOrderByInput', {
   fields: (t) => ({
     name: t.field({ type: SortOrder }),
@@ -80,6 +85,7 @@ const OrderBy = builder.inputType('KBConceptOrderByInput', {
 const FileType = builder.configStore.getOutputTypeRef('File') as ReturnType<
   typeof builder.objectRef<FileRecord>
 >
+
 const ConceptFile = builder
   .objectRef<ConceptFileRecord>('KBConceptFile')
   .implement({
@@ -96,6 +102,7 @@ const ConceptFile = builder
       }),
     }),
   })
+
 const Concept = builder.objectRef<ConceptRecord>('KBConcept').implement({
   fields: (t) => ({
     id: t.exposeID('id', { nullable: false }),
@@ -114,6 +121,7 @@ const Concept = builder.objectRef<ConceptRecord>('KBConcept').implement({
           .select('path')
           .where('kBConceptId', concept.id)
           .first()
+
         return route?.path || `/concepts/${concept.id}`
       },
     }),
@@ -190,7 +198,10 @@ function conceptsQuery(
       ])
     }
     if (typeof filter?.contains === 'string') {
-      query.whereRaw('instr(lower(??), lower(?)) > 0', [field, filter.contains])
+      query.whereRaw(
+        `${ctx.db.client.config.client === 'pg' ? 'strpos' : 'instr'}(lower(??), lower(?)) > 0`,
+        [field, filter.contains],
+      )
     }
     if (filter?.in) {
       query.whereIn(field, filter.in)
@@ -207,7 +218,7 @@ function conceptsQuery(
       .whereNotNull('lat')
       .whereNotNull('lng')
       .whereRaw(
-        `6371 * acos(min(1.0, max(-1.0,
+        `6371 * acos(${ctx.db.client.config.client === 'pg' ? 'least' : 'min'}(1.0, ${ctx.db.client.config.client === 'pg' ? 'greatest' : 'max'}(-1.0,
       cos(radians(?)) * cos(radians(lat)) * cos(radians(lng) - radians(?))
       + sin(radians(?)) * sin(radians(lat))))) < ?`,
         [lat, lng, lat, 10],
@@ -256,6 +267,7 @@ builder.queryField('kBConceptsCount', (t) =>
       const rows = await conceptsQuery(ctx, where).count<{ count: string }[]>({
         count: '*',
       })
+
       return Number(rows[0]?.count ?? 0)
     },
   }),

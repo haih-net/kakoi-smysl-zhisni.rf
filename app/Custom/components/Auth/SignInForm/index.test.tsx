@@ -47,10 +47,12 @@ function setup(success: boolean, networkError = false) {
               observer.complete()
             }
           }, 20)
+
           return () => clearTimeout(timer)
         }),
     ),
   })
+
   const reset = vi.spyOn(client, 'resetStore')
   const onSuccess = vi.fn()
   render(
@@ -76,9 +78,13 @@ describe('sign in', () => {
   it('stores the token, refreshes Apollo state and prevents duplicate submissions', async () => {
     const { request, reset, onSuccess, form } = setup(true)
     fireEvent.submit(form)
-    expect((screen.getByRole('button') as HTMLButtonElement).disabled).toBe(
-      true,
-    )
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /^(Вход…|Войти)$/,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true)
     await waitFor(() => expect(onSuccess).toHaveBeenCalledOnce())
     expect(request).toHaveBeenCalledExactlyOnceWith({
       where: { username: 'owner' },
@@ -97,9 +103,13 @@ describe('sign in', () => {
     expect(localStorage.getItem('token')).toBeNull()
     expect(reset).not.toHaveBeenCalled()
     expect(onSuccess).not.toHaveBeenCalled()
-    expect((screen.getByRole('button') as HTMLButtonElement).disabled).toBe(
-      false,
-    )
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /^(Вход…|Войти)$/,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false)
   })
 
   it('allows retry after a network error', async () => {
@@ -109,8 +119,12 @@ describe('sign in', () => {
       'Не удалось войти. Попробуйте ещё раз.',
     )
     expect(onSuccess).not.toHaveBeenCalled()
-    expect((screen.getByRole('button') as HTMLButtonElement).disabled).toBe(
-      false,
-    )
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /^(Вход…|Войти)$/,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false)
   })
 })

@@ -5,6 +5,7 @@ it('delegates through the real model to an agent whose direct route bypasses the
   const result = await send(
     'Передай через call_agent задачу дословно, без кавычек: «Покажи мои данные пользователя». Верни результат этой задачи.',
   )
+
   expect(result.modelCalls, JSON.stringify(result.agentCalls)).toBe(1)
   expect(result.graphqlCalls).toBe(1)
   expect(result.toolResultsSentToModel).toBe(0)

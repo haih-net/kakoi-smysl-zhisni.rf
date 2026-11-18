@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { Link, useLocation } from 'react-router'
 import { useOpenChatWithMessage } from '../../components/Chat/hooks/useOpenChatWithMessage'
-import { HeaderStyled } from './styles'
+import { HeaderNavStyled, HeaderStyled } from './styles'
 import { SignOutButton } from '../../components/Auth/SignOutButton'
 import { theme } from '../../theme'
-import { useAppContext } from '../../hooks/useAppContext'
+import { useAppContext } from 'app/Custom/components/AppContext'
+import { UserAvatar } from 'app/Custom/components/UserAvatar'
+import { SeparatorStyled } from 'app/Custom/components/Separator/styles'
 
 export const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -13,12 +15,13 @@ export const Header: React.FC = () => {
   const accountMenu = useRef<HTMLDetailsElement>(null)
   const header = useRef<HTMLElement>(null)
   const location = useLocation()
-  const { user, userLoading, openFeedback } = useAppContext()
+  const { user, userLoading = true, openFeedback } = useAppContext() ?? {}
 
   const handleFeedback = useCallback(() => {
-    openFeedback()
+    openFeedback?.()
     setIsOpen(false)
   }, [openFeedback])
+
   const openChat = useOpenChatWithMessage()
   const handleOpenChat = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -34,6 +37,7 @@ export const Header: React.FC = () => {
       accountMenu.current.open = false
     }
   }, [])
+
   const toggleMenu = useCallback(() => setIsOpen((previous) => !previous), [])
   const handleBlur = useCallback((event: React.FocusEvent<HTMLElement>) => {
     if (
@@ -54,6 +58,7 @@ export const Header: React.FC = () => {
         toggle.current?.focus()
       }
     }
+
     const onPointer = (event: PointerEvent) => {
       if (
         event.target instanceof Node &&
@@ -62,12 +67,14 @@ export const Header: React.FC = () => {
         setIsOpen(false)
       }
     }
+
     const media = window.matchMedia(`(min-width: ${theme.breakpoints.sm}px)`)
     const onResize = () => {
       if (media.matches) {
         setIsOpen(false)
       }
     }
+
     document.addEventListener('keydown', onKey)
     document.addEventListener('pointerdown', onPointer)
     media.addEventListener('change', onResize)
@@ -88,12 +95,14 @@ export const Header: React.FC = () => {
         accountMenu.current.open = false
       }
     }
+
     const onEscape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape' && accountMenu.current?.open) {
         accountMenu.current.open = false
         accountMenu.current.querySelector('summary')?.focus()
       }
     }
+
     document.addEventListener('pointerdown', closeAccount)
     document.addEventListener('keydown', onEscape)
     return () => {
@@ -107,7 +116,7 @@ export const Header: React.FC = () => {
       <div className="header-inner">
         <div>
           <Link className="site-name" to="/">
-            какой смысл жизни?
+            Какой смысл жизни?
           </Link>
         </div>
         <button
@@ -134,7 +143,7 @@ export const Header: React.FC = () => {
             />
           </svg>
         </button>
-        <nav
+        <HeaderNavStyled
           id="main-navigation"
           aria-label="Основная навигация"
           data-open={isOpen}
@@ -143,6 +152,28 @@ export const Header: React.FC = () => {
           <Link to="/#idea" onClick={closeMenu}>
             Об идее
           </Link>
+          {user?.sudo === true && (
+            <>
+              <Link
+                to="/calls"
+                onClick={closeMenu}
+                aria-current={
+                  location.pathname.startsWith('/calls') ? 'page' : undefined
+                }
+              >
+                Видеозвонки
+              </Link>
+              <Link
+                to="/docs"
+                onClick={closeMenu}
+                aria-current={
+                  location.pathname.startsWith('/docs') ? 'page' : undefined
+                }
+              >
+                Документация
+              </Link>
+            </>
+          )}
           {/* <Link
             to="/users"
             onClick={closeMenu}
@@ -152,10 +183,14 @@ export const Header: React.FC = () => {
           >
             Пользователи
           </Link> */}
+
+          <SeparatorStyled />
+
           <button
             type="button"
             className="feedback-button"
             onClick={handleFeedback}
+            disabled={!openFeedback}
           >
             Написать
           </button>
@@ -178,15 +213,24 @@ export const Header: React.FC = () => {
                 <summary
                   aria-label={`Меню пользователя: ${user.fullname || user.username || 'Мой аккаунт'}`}
                 >
-                  <span className="account-avatar" aria-hidden="true">
-                    {(user.fullname || user.username || 'Я')
-                      .slice(0, 1)
-                      .toUpperCase()}
-                  </span>
+                  <UserAvatar user={user} />
                   <span className="account-name">
                     {user.fullname || user.username || 'Мой аккаунт'}
                   </span>
-                  <span aria-hidden="true">⌄</span>
+                  <svg
+                    className="account-chevron"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
                 </summary>
                 <div className="account-dropdown">
                   <p>{user.sudo ? 'Администратор' : 'Мой аккаунт'}</p>
@@ -207,11 +251,12 @@ export const Header: React.FC = () => {
                 </div>
               </details>
             ) : (
-              <Link className="signin-link" to="/signin" onClick={closeMenu}>
-                Войти
-              </Link>
+              null
+              // <Link className="signin-link" to="/signin" onClick={closeMenu}>
+              //   Войти
+              // </Link>
             ))}
-        </nav>
+        </HeaderNavStyled>
       </div>
     </HeaderStyled>
   )

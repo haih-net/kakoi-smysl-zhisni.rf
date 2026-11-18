@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { afterEach, expect, it } from 'vitest'
 import { initializeSchema } from '../database/schema'
-import { createDatabase } from '../database'
+import { createDatabase, migrateDatabase } from '../database'
 import { ChatStorage } from './storage'
 
 const databases: ReturnType<typeof createDatabase>[] = []
@@ -12,7 +12,10 @@ it('migrates existing dialogues to chat without changing messages', () => {
   const db = new Database(':memory:')
   try {
     initializeSchema(db)
-    db.exec(`DROP TABLE EthTransaction;
+    db.exec(`DROP TABLE ClientCertificateAccount;
+      DROP TABLE PageErrorEvent;
+      DROP TABLE PageError;
+      DROP TABLE EthTransaction;
       DROP TABLE "Transaction";
       DROP INDEX TelegramAccount_externalKey;
       ALTER TABLE TelegramAccount DROP COLUMN externalKey;
@@ -31,13 +34,14 @@ it('migrates existing dialogues to chat without changing messages', () => {
     expect(db.prepare('SELECT payload FROM ChatMessage').get()).toEqual({
       payload: 'original',
     })
-    expect(db.pragma('user_version', { simple: true })).toBe(4)
+    expect(db.pragma('user_version', { simple: true })).toBe(9)
   } finally {
     db.close()
   }
 })
 it('persists the selected channel and defaults old callers to chat', async () => {
   const database = createDatabase()
+  await migrateDatabase(database)
   databases.push(database)
   const storage = new ChatStorage(database)
   const chat = (await storage.issue()).split('.')[0]

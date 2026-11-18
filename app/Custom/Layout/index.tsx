@@ -29,7 +29,11 @@ export const Layout: React.FC<React.PropsWithChildren> = ({ children }) => {
           К содержимому
         </a>
         <Header key={location.key} />
-        <CustomLayoutMainStyled id="main-content" tabIndex={-1}>
+        <CustomLayoutMainStyled
+          id="main-content"
+          tabIndex={-1}
+          data-home={location.pathname === '/'}
+        >
           {children}
         </CustomLayoutMainStyled>
         <Footer />

@@ -90,6 +90,7 @@ export async function runAgent<S extends AgentStorage>(
           data,
         ),
     }
+
     let steps: PipelineStep[] | undefined
     if (/^Покажи мои данные пользователя$/u.test(request.trim())) {
       steps = [
@@ -106,6 +107,7 @@ export async function runAgent<S extends AgentStorage>(
         /^Вызови call_agent с запросом [«"“]([\s\S]+)[»"”]$/u.exec(
           request.trim(),
         )
+
       if (delegated) {
         steps = [
           {
@@ -152,6 +154,7 @@ export async function runAgent<S extends AgentStorage>(
           }
           return value
         }
+
         const call: ToolCall = {
           id: randomUUID(),
           type: 'function',
@@ -160,6 +163,7 @@ export async function runAgent<S extends AgentStorage>(
             arguments: JSON.stringify(resolve(step.arguments)),
           },
         }
+
         output = await executeTool(call, message, nestedContext)
         try {
           previous = JSON.parse(output)

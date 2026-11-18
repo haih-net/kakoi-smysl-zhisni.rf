@@ -1,6 +1,6 @@
 import { UserStatusStyled, UserStatusActionsStyled } from './styles'
 import { useCallback } from 'react'
-import { useAppContext } from 'app/Custom/hooks/useAppContext'
+import { useAppContext } from 'app/Custom/components/AppContext'
 import {
   UserFragment,
   UserStatusEnum,
@@ -13,7 +13,7 @@ type StatusTogglerProps = {
 }
 
 export const StatusToggler: React.FC<StatusTogglerProps> = ({ user }) => {
-  const { user: currentUser } = useAppContext()
+  const { user: currentUser } = useAppContext() ?? {}
 
   const { id, status } = user
 
@@ -54,6 +54,7 @@ export const StatusToggler: React.FC<StatusTogglerProps> = ({ user }) => {
       : status === UserStatusEnum.NEWBIE
         ? 'Новый'
         : 'Активен'
+
   return (
     <UserStatusActionsStyled>
       <UserStatusStyled data-status={status}>{label}</UserStatusStyled>

@@ -65,6 +65,7 @@ export async function executeTool<S extends AgentStorage>(
       ('errors' in parsed &&
         Array.isArray(parsed.errors) &&
         parsed.errors.length > 0))
+
   await storage.append(chatId, {
     id: randomUUID(),
     createdAt: new Date().toISOString(),

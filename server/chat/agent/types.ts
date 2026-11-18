@@ -15,5 +15,6 @@ export interface AgentRunOptions {
   /** Selects the LLM response mode; output delivery is provided by the context. */
   stream?: boolean
   onAuthenticated?: (chatId: string) => void | Promise<void>
+  onReady?: () => void | Promise<void>
   diagnostics?: () => Record<string, unknown>
 }

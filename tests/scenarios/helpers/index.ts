@@ -47,6 +47,7 @@ beforeAll(async () => {
   const [record] = await db<UserRecord>('User')
     .insert({ ...user, status: 'active' })
     .returning('*')
+
   authToken = await createToken(record, db)
   const app: Express = express()
   // This isolated API represents the authenticated user's execution context.
@@ -60,6 +61,7 @@ beforeAll(async () => {
       operationName: req.body.operationName,
       contextValue: await createContext(req),
     })
+
     res.json(result)
   })
   setupChat({ app, storage: chatStorage })
@@ -98,15 +100,18 @@ export async function send(
     'Content-Type': 'application/json',
     ...(authenticated ? { Authorization: `Bearer ${authToken}` } : {}),
   }
+
   const issued = await fetch(endpoint, {
     method: 'POST',
     headers,
     body: JSON.stringify({ query: 'mutation { createChatToken(data: {}) }' }),
   })
+
   const issuance = (await issued.json()) as {
     errors?: unknown[]
     data: { createChatToken: string }
   }
+
   expect(issuance.errors).toBeUndefined()
   const token: string = issuance.data.createChatToken
   const previousApiCalls = apiCalls
@@ -115,6 +120,7 @@ export async function send(
     headers: { ...headers, 'dialog-token': token },
     body: JSON.stringify({ message, stream: false }),
   })
+
   expect(response.status).toBe(200)
   const result = (await response.json()) as AgentResult
   expect(result.success).toBe(true)
@@ -123,6 +129,7 @@ export async function send(
     .filter(({ role }) => role === 'tool_call')
     .map(({ content }) => JSON.parse(content) as ExecutionRecord)
     .filter((entry) => entry.kind === 'execution')
+
   const modelCalls = records.filter((entry) => entry.function.name === 'llm')
   return {
     content: result.content,

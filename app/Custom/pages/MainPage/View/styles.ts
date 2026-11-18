@@ -9,6 +9,8 @@ export const MainPageViewStyled = styled.article`
     text-align: center;
   }
   .hero-copy {
+    text-shadow:
+      0 0 20px #fff;
     position: relative;
     z-index: 1;
     padding: 36px 22px 12px;
@@ -159,7 +161,7 @@ export const MainPageViewStyled = styled.article`
   }
   @media (min-width: ${theme.breakpoints.sm}px) {
     .introduction {
-      min-height: max(800px, 63vw);
+      min-height: calc(100svh - 88px);
     }
     .hero-copy {
       padding: 40px 32px 0;

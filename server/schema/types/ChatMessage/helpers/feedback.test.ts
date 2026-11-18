@@ -2,16 +2,18 @@ import { errorReporter } from '../../../../errorLogging'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Request } from 'express'
 import { createFeedback } from './feedback'
-import { createDatabase } from '../../../../database'
+import { createDatabase, migrateDatabase } from '../../../../database'
 import { ChatStorage } from '../../../../chat/storage'
 
 const request = {
   get: () => 'https://example.com',
   socket: { remoteAddress: '127.0.0.1' },
 } as unknown as Request
+
 const databases: ReturnType<typeof createDatabase>[] = []
-const setup = () => {
+const setup = async () => {
   const database = createDatabase()
+  await migrateDatabase(database)
   databases.push(database)
   const storage = new ChatStorage(database)
   const send = vi.fn().mockResolvedValue(undefined)
@@ -21,12 +23,13 @@ const setup = () => {
     service: createFeedback(send, Date.now, storage),
   }
 }
+
 afterEach(async () => {
   await Promise.all(databases.splice(0).map((database) => database.destroy()))
 })
 describe('feedback dialogues', () => {
   it('stores one unanswered feedback message and sends repeated submission once', async () => {
-    const { storage, send, service } = setup()
+    const { storage, send, service } = await setup()
     const token = await storage.issue('feedback')
     const input = { token, contacts: '@visitor', message: 'Help with my site' }
     await expect(
@@ -36,6 +39,7 @@ describe('feedback dialogues', () => {
       service.submit(input, request),
       service.submit(input, request),
     ])
+
     expect(results[0]).toBe(results[1])
     expect(send).toHaveBeenCalledTimes(1)
     expect(send.mock.calls[0][0]).toContain('@visitor')
@@ -53,7 +57,7 @@ describe('feedback dialogues', () => {
     expect(send).toHaveBeenCalledTimes(1)
   })
   it('rejects chat tokens and forged tokens', async () => {
-    const { storage, service, send } = setup()
+    const { storage, service, send } = await setup()
     const input = { token: await storage.issue(), contacts: 'a', message: 'b' }
     await expect(service.submit(input, request)).rejects.toThrow('токен')
     await expect(
@@ -63,11 +67,12 @@ describe('feedback dialogues', () => {
     expect(await storage.read(input.token.split('.')[0])).toEqual([])
   })
   it('accepts the message despite SMTP failure and does not duplicate it on retry', async () => {
-    const { storage, send, service } = setup()
+    const { storage, send, service } = await setup()
     const failure = new Error('SMTP unavailable')
     const log = vi
       .spyOn(errorReporter, 'error')
       .mockImplementationOnce(() => undefined)
+
     send.mockRejectedValueOnce(failure)
     const token = await storage.issue('feedback')
     const input = { token, contacts: '@visitor', message: 'Help' }
@@ -91,8 +96,9 @@ it('accepts feedback without mail configuration and without Origin', async () =>
   const log = vi
     .spyOn(errorReporter, 'error')
     .mockImplementationOnce(() => undefined)
+
   try {
-    const { storage } = setup()
+    const { storage } = await setup()
     const service = createFeedback(undefined, Date.now, storage)
     const token = await storage.issue('feedback')
     const req = {
@@ -100,6 +106,7 @@ it('accepts feedback without mail configuration and without Origin', async () =>
       protocol: 'http',
       get: (name: string) => (name === 'host' ? 'localhost:4319' : undefined),
     } as unknown as Request
+
     await expect(
       service.submit({ token, contacts: '@visitor', message: 'Hello' }, req),
     ).resolves.toContain('Сообщение принято')
@@ -117,7 +124,7 @@ it('accepts feedback without mail configuration and without Origin', async () =>
 })
 
 it('does not wait for SMTP to accept the message', async () => {
-  const { storage } = setup()
+  const { storage } = await setup()
   let finish: (() => void) | undefined
   const send = vi.fn(
     () =>
@@ -125,6 +132,7 @@ it('does not wait for SMTP to accept the message', async () => {
         finish = resolve
       }),
   )
+
   const service = createFeedback(send, Date.now, storage)
   try {
     const token = await storage.issue('feedback')
@@ -141,15 +149,17 @@ it('does not wait for SMTP to accept the message', async () => {
 })
 
 it('reports a storage failure and does not attempt mail delivery', async () => {
-  const { service, storage, send } = setup()
+  const { service, storage, send } = await setup()
   const token = await storage.issue('feedback')
   const failure = new Error('disk full')
   const log = vi
     .spyOn(errorReporter, 'error')
     .mockImplementationOnce(() => undefined)
+
   const append = vi
     .spyOn(storage, 'appendFeedback')
     .mockRejectedValueOnce(failure)
+
   try {
     await expect(
       service.submit(

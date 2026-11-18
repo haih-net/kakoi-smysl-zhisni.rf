@@ -53,6 +53,7 @@ mutation createReferrerToken {
 }
 
 fragment meUser on User {
+  certificateFingerprints
   ...User_
 
   EthAccount {
@@ -78,6 +79,7 @@ fragment User_ on User {
 }
 
 fragment UserNoNesting on User {
+  email
   id
   createdAt
   updatedAt
@@ -89,4 +91,10 @@ fragment UserNoNesting on User {
   status
   intro
   isAiAgent
+}
+
+mutation createUser($data: UserCreateDataInput!) {
+  createUser(data: $data) {
+    ...User_
+  }
 }
