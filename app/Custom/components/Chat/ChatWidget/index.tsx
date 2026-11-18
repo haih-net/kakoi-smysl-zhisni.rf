@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useSnackbar } from 'app/Custom/hooks/useSnackbar'
 import { ChatWidgetContainer, ChatButton } from './styles'
 import { useChatContext } from './context'
+import { useDraggable } from 'app/Custom/hooks/useDraggable'
 
 type ChatComponents = {
   ChatContent: typeof import('./ChatContent').ChatContent
@@ -13,6 +14,17 @@ export const ChatWidget: React.FC = () => {
   const snackbar = useSnackbar()
   const addMessage = snackbar?.addMessage
   const { isOpen, handleClose } = chat
+  const draggable = useDraggable<HTMLButtonElement>()
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const draggableRef = draggable.ref
+  const setButtonRef = useCallback(
+    (element: HTMLButtonElement | null): void => {
+      buttonRef.current = element
+      draggableRef(element)
+    },
+    [draggableRef],
+  )
+
   const [mounted, setMounted] = useState(false)
   const [components, setComponents] = useState<ChatComponents | null>(null)
 
@@ -62,6 +74,7 @@ export const ChatWidget: React.FC = () => {
     <ChatWidgetContainer>
       {isOpen && components && (
         <components.ChatModal
+          anchorRef={buttonRef}
           isExpanded={chat.isExpanded}
           onClose={chat.handleClose}
           onExpand={chat.handleExpand}
@@ -71,16 +84,30 @@ export const ChatWidget: React.FC = () => {
       )}
 
       <ChatButton
-        aria-label="Открыть ИИ-помощника"
+        {...draggable.handleProps}
+        ref={setButtonRef}
+        style={{ ...draggable.handleProps.style, ...draggable.style }}
+        data-dragging={draggable.isDragging}
+        data-animated={!isOpen && !draggable.isDragging}
+        aria-label="ИИ-чат — открыть помощника"
         onClick={chat.handleToggle}
         data-open={isVisible}
         disabled={isLoading}
         aria-busy={isLoading}
         type="button"
       >
-        <svg viewBox="0 0 24 24">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.5A8 8 0 1 1 21 12z" />
         </svg>
+        <span>ИИ-чат</span>
       </ChatButton>
     </ChatWidgetContainer>
   )

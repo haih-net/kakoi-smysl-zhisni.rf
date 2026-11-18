@@ -49,6 +49,8 @@ it.each([
     }
   }
   expect(
-    screen.getByRole('link', { name: 'Какой смысл жизни?' }),
-  ).not.toBeNull()
+    screen
+      .getByRole('link', { name: 'Какой смысл жизни?' })
+      .getAttribute('href'),
+  ).toBe('/')
 })

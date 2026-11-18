@@ -1,17 +1,29 @@
+import { useCallMedia } from './hooks/useCallMedia'
+import { useCallNotifications } from './hooks/useCallNotifications'
+import { useCallsContext } from './hooks/useCallsContext'
 import { Select } from '../controls/Select'
 import { useCallback } from 'react'
 import { VideoOff, Video, Mic, MicOff, Volume2 } from 'lucide-react'
 import type * as React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '../Button'
-import type { CallMedia } from './hooks/useCallMedia'
+
 import { MediaView } from './MediaView'
 import { MicrophoneLevel } from './MicrophoneLevel'
 export const DeviceControls: React.FC<{
-  media: CallMedia
+  mediaId: string
+  roomId?: string
   cameraPreview?: React.ReactNode
   compact?: boolean
-}> = ({ media, cameraPreview, compact = false }) => {
+}> = ({ mediaId, roomId, cameraPreview, compact = false }) => {
+  const media = useCallMedia(mediaId)
+  const { state } = useCallsContext()
+  const room = roomId ? state.rooms[roomId] : undefined
+  const stopped = Boolean(
+    room?.room?.closed || room?.connection.status.phase === 'denied',
+  )
+
+  const { reportError } = useCallNotifications()
   const [tab, setTab] = useState<'camera' | 'microphone' | 'sound'>('camera')
   const selectTab = useCallback<React.MouseEventHandler<HTMLButtonElement>>(
     (event) => {
@@ -23,9 +35,7 @@ export const DeviceControls: React.FC<{
     [],
   )
 
-  const [microphone, setMicrophone] = useState('')
-  const [camera, setCamera] = useState('')
-  const [soundError, setSoundError] = useState('')
+  const { microphone, camera } = media.selectedDevices
   const sound = useRef<AudioContext | null>(null)
   useEffect(
     () => () => {
@@ -36,7 +46,6 @@ export const DeviceControls: React.FC<{
     [],
   )
   const testSound = useCallback(async (): Promise<void> => {
-    setSoundError('')
     try {
       if (sound.current?.state !== 'closed') {
         await sound.current?.close()
@@ -58,19 +67,18 @@ export const DeviceControls: React.FC<{
         }
       }
     } catch {
-      setSoundError(
-        'Не удалось воспроизвести тестовый звук. Проверьте настройки браузера.',
+      reportError(
+        new Error(
+          'Не удалось воспроизвести тестовый звук. Проверьте настройки браузера.',
+        ),
       )
     }
-  }, [])
+  }, [reportError])
 
   const changeCamera = useCallback(
     (value: string | null): void => {
       const deviceId = value ?? ''
-      setCamera(deviceId)
-      if (media.streams.camera) {
-        void media.start('camera', deviceId)
-      }
+      media.handle?.selectDevice('camera', deviceId)
     },
     [media],
   )
@@ -78,29 +86,20 @@ export const DeviceControls: React.FC<{
   const changeMicrophone = useCallback(
     (value: string | null): void => {
       const deviceId = value ?? ''
-      setMicrophone(deviceId)
-      if (media.streams.microphone) {
-        void media.start('microphone', deviceId)
-      }
+      media.handle?.selectDevice('microphone', deviceId)
     },
     [media],
   )
 
-  const toggleCamera = useCallback((): void => {
-    if (media.streams.camera) {
-      media.stop('camera')
-    } else {
-      void media.start('camera', camera)
-    }
-  }, [media, camera])
+  const toggleCamera = useCallback(
+    (): void => media.handle?.toggle('camera'),
+    [media],
+  )
 
-  const toggleMicrophone = useCallback((): void => {
-    if (media.streams.microphone) {
-      media.stop('microphone')
-    } else {
-      void media.start('microphone', microphone)
-    }
-  }, [media, microphone])
+  const toggleMicrophone = useCallback(
+    (): void => media.handle?.toggle('microphone'),
+    [media],
+  )
 
   return (
     <div className="panel device-controls">
@@ -153,7 +152,7 @@ export const DeviceControls: React.FC<{
       <div className="actions device-toggles">
         {(!compact || tab === 'camera') && (
           <Button
-            disabled={media.busy.camera}
+            disabled={media.busy.camera || stopped}
             onClick={toggleCamera}
             aria-pressed={Boolean(media.streams.camera)}
           >
@@ -171,7 +170,7 @@ export const DeviceControls: React.FC<{
         )}
         {(!compact || tab === 'microphone') && (
           <Button
-            disabled={media.busy.microphone}
+            disabled={media.busy.microphone || stopped}
             onClick={toggleMicrophone}
             aria-pressed={Boolean(media.streams.microphone)}
           >
@@ -194,7 +193,7 @@ export const DeviceControls: React.FC<{
             label="Камера"
             value={camera}
             onChange={changeCamera}
-            disabled={media.busy.camera}
+            disabled={media.busy.camera || stopped}
             options={[
               { id: '', text: 'По умолчанию' },
               ...media.devices
@@ -213,7 +212,7 @@ export const DeviceControls: React.FC<{
             label="Микрофон"
             value={microphone}
             onChange={changeMicrophone}
-            disabled={media.busy.microphone}
+            disabled={media.busy.microphone || stopped}
             options={[
               { id: '', text: 'По умолчанию' },
               ...media.devices
@@ -242,10 +241,8 @@ export const DeviceControls: React.FC<{
             настройках системы. Звук микрофона не воспроизводится в динамиках,
             чтобы избежать эха.
           </p>
-          {soundError && <p role="alert">{soundError}</p>}
         </>
       )}
-      {media.error && <p role="alert">{media.error}</p>}
     </div>
   )
 }

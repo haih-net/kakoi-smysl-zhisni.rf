@@ -4,34 +4,23 @@ import {
   CustomLayoutStyled,
   CustomLayoutMainStyled,
 } from 'app/Custom/Layout/styles'
-import { HeaderStyled } from 'app/Custom/Layout/Header/styles'
 import { FooterStyled } from 'app/Custom/Layout/Footer/styles'
 import { ChatWidgetContainer } from 'app/Custom/components/Chat/ChatWidget/styles'
 
 export const CallRoomStyled = styled(CallsStyled)`
-  body:has(&) ${HeaderStyled} {
-    transition: height 240ms ease;
-  }
-  body:has(&) ${HeaderStyled} .header-inner {
-    transition: padding 240ms ease;
+  .call-page-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   body:has(&[data-active='true']) ${CustomLayoutStyled} {
     height: 100dvh;
     min-height: 0;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-  }
-  body:has(&[data-active='true']) ${HeaderStyled} {
-    --header-height: 0px;
-    height: var(--header-height);
-    position: relative;
-    overflow: hidden;
-    visibility: hidden;
-    border-bottom: 0;
-  }
-  body:has(&[data-active='true']) ${HeaderStyled} .header-inner {
-    padding-top: 0;
-    padding-bottom: 0;
   }
   body:has(&[data-active='true']) ${CustomLayoutMainStyled} {
     min-height: 0;

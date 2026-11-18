@@ -1,3 +1,6 @@
+import { useCallMedia } from './hooks/useCallMedia'
+import { roomMediaId } from './hooks/useCallMedia'
+import type { CallConnection, JoinedCallRoom } from './interfaces'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Mic,
@@ -15,15 +18,12 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import type * as React from 'react'
-import type { CallMedia } from './hooks/useCallMedia'
-import { useCallConnection, type CallSession } from './hooks/useCallConnection'
+
 import { UserAvatar } from '../UserAvatar'
 import { useAppContext } from '../AppContext'
 import { KickCallParticipant } from './KickParticipant'
 import type { UserNoNestingFragment } from 'app/gql/generated'
 import { MediaView } from './MediaView'
-import { CallAudio } from './CallAudio'
-import { ConnectionStatus } from './ConnectionStatus'
 import { DeviceControls } from './DeviceControls'
 import { ConferenceStyled } from './conferenceStyles'
 
@@ -48,31 +48,16 @@ interface Tile {
 }
 
 export const ActiveCall: React.FC<{
-  session: CallSession
-  media: CallMedia
+  session: JoinedCallRoom
   onLeave: () => void
-  onSettings: () => void
-  title: string
+  connection: CallConnection
   invitation: React.ReactNode
   roomSettings?: React.ReactNode
-  notice: string
-}> = ({
-  session,
-  media,
-  onLeave,
-  onSettings,
-  title,
-  invitation,
-  roomSettings,
-  notice,
-}) => {
+}> = ({ session, onLeave, connection, invitation, roomSettings }) => {
+  const media = useCallMedia(roomMediaId(session.id))
+  const toggleMedia = media.handle?.toggle
   const { user } = useAppContext() ?? {}
-  const { peers, self, status, error } = useCallConnection(
-    session,
-    media.streams,
-    onSettings,
-    media.stopAll,
-  )
+  const { peers, self, status } = connection
 
   const [selected, setSelected] = useState<string | null>(null)
   const [panel, setPanel] = useState<Panel>(null)
@@ -83,29 +68,20 @@ export const ActiveCall: React.FC<{
   const rail = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
 
-  const toggleScreen = useCallback((): void => {
-    if (media.streams.screen) {
-      media.stop('screen')
-    } else {
-      void media.start('screen')
-    }
-  }, [media])
+  const toggleScreen = useCallback(
+    (): void => toggleMedia?.('screen'),
+    [toggleMedia],
+  )
 
-  const toggleMicrophone = useCallback((): void => {
-    if (media.streams.microphone) {
-      media.stop('microphone')
-    } else {
-      void media.start('microphone')
-    }
-  }, [media])
+  const toggleMicrophone = useCallback(
+    (): void => toggleMedia?.('microphone'),
+    [toggleMedia],
+  )
 
-  const toggleCamera = useCallback((): void => {
-    if (media.streams.camera) {
-      media.stop('camera')
-    } else {
-      void media.start('camera')
-    }
-  }, [media])
+  const toggleCamera = useCallback(
+    (): void => toggleMedia?.('camera'),
+    [toggleMedia],
+  )
 
   const toggleParticipants = useCallback(
     (): void => setParticipantsOpen((open) => !open),
@@ -202,44 +178,6 @@ export const ActiveCall: React.FC<{
 
   return (
     <ConferenceStyled>
-      <div className="conference-heading">
-        <h1 tabIndex={-1}>{title}</h1>
-
-        <div>
-          {(status.phase !== 'connected' || error || media.error || notice) && (
-            <div className="conference-status">
-              {status.phase !== 'connected' && (
-                <ConnectionStatus status={status} onRejoin={onLeave} />
-              )}
-              {error && <p role="alert">{error}</p>}
-              {media.error && <p role="alert">{media.error}</p>}
-              {notice && <p role="status">{notice}</p>}
-            </div>
-          )}
-          {!session.iceServers.some((server) =>
-            server.urls.some((url) => url.startsWith('turn')),
-          ) && (
-            <p className="hint">
-              TURN не настроен: некоторые сети могут не соединиться напрямую.
-            </p>
-          )}
-        </div>
-
-        <button
-          type="button"
-          className="participants-toggle"
-          ref={participantsToggle}
-          onClick={toggleParticipants}
-          aria-label={`Участники: ${tiles.length}`}
-          aria-expanded={participantsOpen}
-          aria-controls="call-participants"
-          title="Участники"
-        >
-          <Users size={16} />
-          {tiles.length}
-        </button>
-      </div>
-
       <div
         className="conference-workspace"
         data-participants-open={participantsOpen}
@@ -361,20 +299,24 @@ export const ActiveCall: React.FC<{
           </div>
         </aside>
       </div>
-      <div className="conference-audio">
-        {peers.map((peer) => (
-          <CallAudio
-            key={peer.id}
-            stream={peer.media.microphone ? peer.streams.microphone : null}
-            name={peer.name}
-          />
-        ))}
-      </div>
       <div
         className="conference-toolbar"
         role="toolbar"
         aria-label="Управление звонком"
       >
+        <button
+          type="button"
+          className="participants-toggle"
+          ref={participantsToggle}
+          onClick={toggleParticipants}
+          aria-label={`Участники: ${tiles.length}`}
+          aria-expanded={participantsOpen}
+          aria-controls="call-participants"
+          title="Участники"
+        >
+          <Users size={16} />
+          {tiles.length}
+        </button>
         <button
           type="button"
           title="Микрофон"
@@ -468,10 +410,15 @@ export const ActiveCall: React.FC<{
         >
           <X size={20} />
         </button>
-        {panel === 'devices' && <DeviceControls media={media} compact />}
+        {panel === 'devices' && (
+          <DeviceControls
+            mediaId={roomMediaId(session.id)}
+            roomId={session.id}
+            compact
+          />
+        )}
         {panel === 'invitation' && invitation}
         {panel === 'room' && roomSettings}
-        {notice && <p role="status">{notice}</p>}
       </dialog>
     </ConferenceStyled>
   )

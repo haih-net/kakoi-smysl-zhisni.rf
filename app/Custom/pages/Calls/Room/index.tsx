@@ -1,100 +1,55 @@
+import {
+  useOpenCallRoom,
+  useCallRoom,
+} from 'app/Custom/components/Calls/hooks/useCallRoom'
+import { useCallRoomMutations } from 'app/Custom/components/Calls/hooks/useCallRoomMutations'
+import { useCallNotifications } from 'app/Custom/components/Calls/hooks/useCallNotifications'
+import { roomMediaId } from 'app/Custom/components/Calls/hooks/useCallMedia'
 import { AuthModal } from 'app/Custom/components/Auth/AuthModal'
 import type * as React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import {
-  useCallRoomQuery,
-  useCloseCallRoomMutation,
-  useUpdateCallRoomMutation,
-} from 'app/gql/generated'
 import { useAppContext } from 'app/Custom/components/AppContext'
 import { CallRoomStyled } from './styles'
-import { useCallMedia } from 'app/Custom/components/Calls/hooks/useCallMedia'
-import type { CallSession } from 'app/Custom/components/Calls/hooks/useCallConnection'
 import { DeviceControls } from 'app/Custom/components/Calls/DeviceControls'
 import { ActiveCall } from 'app/Custom/components/Calls/ActiveCall'
 import { JoinCallForm } from 'app/Custom/components/Calls/JoinForm'
-import type { CallRoomFormData } from 'app/Custom/components/Calls/RoomForm/schema'
 import { CallRoomForm } from 'app/Custom/components/Calls/RoomForm'
 import { CallInvitation } from 'app/Custom/components/Calls/Invitation'
 import { Button } from 'app/Custom/components/Button'
 const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
-  const { user, userLoading } = useAppContext() ?? {}
-  const { data, error, loading, refetch } = useCallRoomQuery({
-    variables: { id },
-    fetchPolicy: 'network-only',
-    pollInterval: 15000,
-  })
-
-  const room = data?.callRoom
-  const [update] = useUpdateCallRoomMutation()
-  const [close, closing] = useCloseCallRoomMutation()
-  const [session, setSession] = useState<CallSession | null>(null)
-  const [code, setCode] = useState('')
-  const [notice, setNotice] = useState('')
+  const { user, userLoading, calls } = useAppContext() ?? {}
   const [confirmClose, setConfirmClose] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
-  const openAuth = useCallback(() => setAuthOpen(true), [])
-  const closeAuth = useCallback(() => setAuthOpen(false), [])
-  const media = useCallMedia()
-  useEffect(() => {
-    const params = new URLSearchParams(location.hash.slice(1))
-    if (params.has('code')) {
-      setCode(params.get('code') ?? '')
-      history.replaceState(
-        history.state,
-        '',
-        location.pathname + location.search,
-      )
-    }
-  }, [id])
-  const refresh = useCallback((): void => {
-    setCode('')
-    void refetch().catch(() => setNotice('Не удалось обновить настройки'))
-  }, [refetch])
-
-  const { stopAll } = media
-  useEffect(() => {
-    if (room?.closed) {
-      stopAll()
-    }
-  }, [room?.closed, stopAll])
-  const leave = useCallback((): void => {
-    setSession(null)
-    media.stopAll()
-  }, [media])
-
-  const join = useCallback((value: CallSession, accessCode: string): void => {
-    setSession(value)
-    setCode(accessCode)
-  }, [])
-
+  const openAuth = useCallback((): void => setAuthOpen(true), [])
+  const closeAuth = useCallback((): void => setAuthOpen(false), [])
+  const requestClose = useCallback((): void => setConfirmClose(true), [])
+  const cancelClose = useCallback((): void => setConfirmClose(false), [])
+  useOpenCallRoom(id)
+  const { join, leave } = useCallRoom(id)
+  const { saveRoom, closeRoom, closing } = useCallRoomMutations()
+  const { reportError } = useCallNotifications()
   const save = useCallback(
-    async (settings: CallRoomFormData): Promise<void> => {
-      await update({ variables: { id, data: settings } })
-      await refetch()
-      if (settings.accessCode !== null && settings.accessCode !== undefined) {
-        setCode(settings.accessCode)
-      }
-      setNotice('Настройки сохранены')
-    },
-    [update, id, refetch],
+    (data: Parameters<typeof saveRoom>[1]) => saveRoom(id, data),
+    [id, saveRoom],
   )
 
-  const endRoom = useCallback(async (): Promise<void> => {
-    try {
-      await close({ variables: { id } })
-      leave()
-      await refetch()
-    } catch (err) {
-      setNotice(
-        err instanceof Error ? err.message : 'Не удалось завершить звонок',
-      )
-    }
-  }, [close, id, leave, refetch])
+  const endRoom = useCallback(() => {
+    void closeRoom(id).catch(reportError)
+  }, [id, closeRoom, reportError])
 
-  const cancelClose = useCallback((): void => setConfirmClose(false), [])
-  const requestClose = useCallback((): void => setConfirmClose(true), [])
+  const call = calls?.state.rooms[id]
+  const code = calls?.state.codes[id] ?? ''
+  useEffect(() => setConfirmClose(false), [call?.session])
+  if (!call) {
+    return (
+      <CallRoomStyled>
+        <p>Загрузка комнаты…</p>
+      </CallRoomStyled>
+    )
+  }
+  const { room, loading, session } = call
+
   if (loading && !room) {
     return (
       <CallRoomStyled>
@@ -106,11 +61,12 @@ const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
     return (
       <CallRoomStyled>
         <h1>Комната недоступна</h1>
-        <p role="alert">{error?.message ?? 'Комната не найдена'}</p>
+        <p role="alert">Комната не найдена или недоступна</p>
         <Link to="/calls">К видеозвонкам</Link>
       </CallRoomStyled>
     )
   }
+  const canManage = room.isOwner || (user?.sudo && user.status === 'active')
   const roomSettings = (
     <details className="panel" open={Boolean(session)}>
       <summary>Настройки комнаты</summary>
@@ -129,11 +85,7 @@ const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
         {confirmClose ? (
           <>
             <p>Завершить звонок для всех и закрыть комнату?</p>
-            <Button
-              variant="danger"
-              disabled={closing.loading}
-              onClick={endRoom}
-            >
+            <Button variant="danger" disabled={closing} onClick={endRoom}>
               Да, завершить для всех
             </Button>
             <Button variant="secondary" onClick={cancelClose}>
@@ -152,12 +104,13 @@ const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
   if (session && !room.closed) {
     return (
       <CallRoomStyled data-active="true">
+        <h1 className="call-page-title" tabIndex={-1}>
+          {room.title}
+        </h1>
         <ActiveCall
           session={session}
-          media={media}
           onLeave={leave}
-          onSettings={refresh}
-          title={room.title ?? 'Звонок'}
+          connection={call.connection}
           invitation={
             <CallInvitation
               roomId={id}
@@ -165,12 +118,7 @@ const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
               hasCode={Boolean(room.hasAccessCode)}
             />
           }
-          roomSettings={
-            room.isOwner || (user?.sudo && user.status === 'active')
-              ? roomSettings
-              : undefined
-          }
-          notice={notice}
+          roomSettings={canManage ? roomSettings : undefined}
         />
       </CallRoomStyled>
     )
@@ -194,7 +142,7 @@ const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
         <>
           <div className="prejoin-layout">
             <div className="prejoin-preview">
-              <DeviceControls media={media} />
+              <DeviceControls mediaId={roomMediaId(id)} roomId={id} />
             </div>
             <div className="panel join-panel">
               <span className="eyebrow">Всё готово к занятию?</span>
@@ -211,7 +159,6 @@ const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
                 </p>
               ) : (
                 <JoinCallForm
-                  roomId={id}
                   hasCode={Boolean(room.hasAccessCode)}
                   code={code}
                   name={user?.fullname || user?.username || ''}
@@ -232,11 +179,9 @@ const CallRoomView: React.FC<{ id: string }> = ({ id }) => {
               hasCode={Boolean(room.hasAccessCode)}
             />
           </details>
-          {(room.isOwner || (user?.sudo && user.status === 'active')) &&
-            roomSettings}
+          {canManage && roomSettings}
         </>
       )}
-      {notice && <p role="status">{notice}</p>}
       <AuthModal isOpen={authOpen} onClose={closeAuth} />
     </CallRoomStyled>
   )

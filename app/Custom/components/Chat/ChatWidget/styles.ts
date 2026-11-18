@@ -88,6 +88,14 @@ export const ChatWindow = styled.div`
 `
 
 export const ChatHeader = styled.div`
+  &[data-draggable='true'] {
+    cursor: grab;
+  }
+
+  &[data-dragging='true'] {
+    cursor: grabbing;
+  }
+
   padding: 16px 20px;
   background: #f9fafb;
   display: flex;
@@ -338,15 +346,33 @@ export const WelcomeMessage = styled.div`
 `
 
 export const ChatButton = styled.button`
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  min-height: 52px;
+  padding: 14px 20px;
+  gap: 10px;
+  border-radius: ${theme.radii.full};
   background: ${theme.colors.primary};
-  border: none;
-  cursor: pointer;
+  color: ${theme.colors.text.light};
+  font: 700 16px/1.25 ${theme.font};
+  white-space: nowrap;
+
+  @media (min-width: 560px) {
+    min-height: 60px;
+    padding: 16px 26px;
+    font-size: 18px;
+  }
+  border: 1px solid transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+
+  &[data-dragging='true'] {
+    cursor: grabbing;
+    animation: none;
+  }
   display: flex;
   &[data-open='true'] {
-    display: none;
+    visibility: hidden;
+    pointer-events: none;
   }
   align-items: center;
   justify-content: center;
@@ -354,6 +380,28 @@ export const ChatButton = styled.button`
   transition:
     transform 0.2s,
     box-shadow 0.2s;
+
+  &[data-animated='true'] {
+    animation: chatButtonPulse 2.6s ease-in-out infinite;
+  }
+
+  @keyframes chatButtonPulse {
+    0%,
+    100% {
+      box-shadow:
+        0 8px 24px color-mix(in srgb, ${theme.colors.primary} 24%, transparent),
+        0 0 0 0 color-mix(in srgb, ${theme.colors.primary} 30%, transparent);
+    }
+    50% {
+      box-shadow:
+        0 10px 28px color-mix(in srgb, ${theme.colors.primary} 30%, transparent),
+        0 0 0 12px color-mix(in srgb, ${theme.colors.primary} 0%, transparent);
+    }
+  }
+
+  &:focus-visible {
+    border-color: ${theme.colors.primary};
+  }
 
   &:hover:not(:disabled) {
     transform: scale(1.05);
@@ -381,6 +429,9 @@ export const ChatButton = styled.button`
   }
 
   @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &[data-animated='true'],
     &[aria-busy='true'] svg {
       animation: none;
     }
@@ -389,7 +440,7 @@ export const ChatButton = styled.button`
   svg {
     width: 24px;
     height: 24px;
-    fill: #fff;
+    flex-shrink: 0;
     display: block;
   }
 `

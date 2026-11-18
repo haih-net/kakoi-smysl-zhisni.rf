@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { Link, useLocation } from 'react-router'
-import { useOpenChatWithMessage } from '../../components/Chat/hooks/useOpenChatWithMessage'
+import { MessageCircle } from 'lucide-react'
 import { HeaderNavStyled, HeaderStyled } from './styles'
 import { SignOutButton } from '../../components/Auth/SignOutButton'
 import { theme } from '../../theme'
 import { useAppContext } from 'app/Custom/components/AppContext'
 import { UserAvatar } from 'app/Custom/components/UserAvatar'
+import { CallsHeader } from 'app/Custom/components/Calls/CallsHeader'
 import { SeparatorStyled } from 'app/Custom/components/Separator/styles'
 
 export const Header: React.FC = () => {
@@ -22,21 +23,16 @@ export const Header: React.FC = () => {
     setIsOpen(false)
   }, [openFeedback])
 
-  const openChat = useOpenChatWithMessage()
-  const handleOpenChat = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      openChat(event)
-      setIsOpen(false)
-    },
-    [openChat],
-  )
-
   const closeMenu = useCallback(() => {
     setIsOpen(false)
     if (accountMenu.current) {
       accountMenu.current.open = false
     }
   }, [])
+
+  useEffect(() => {
+    closeMenu()
+  }, [location.key, closeMenu])
 
   const toggleMenu = useCallback(() => setIsOpen((previous) => !previous), [])
   const handleBlur = useCallback((event: React.FocusEvent<HTMLElement>) => {
@@ -119,30 +115,6 @@ export const Header: React.FC = () => {
             Какой смысл жизни?
           </Link>
         </div>
-        <button
-          ref={toggle}
-          type="button"
-          className="menu-toggle"
-          aria-label={isOpen ? 'Закрыть меню' : 'Открыть меню'}
-          aria-expanded={isOpen}
-          aria-controls="main-navigation"
-          onClick={toggleMenu}
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <path
-              d={isOpen ? 'M18 6 6 18M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'}
-            />
-          </svg>
-        </button>
         <HeaderNavStyled
           id="main-navigation"
           aria-label="Основная навигация"
@@ -192,21 +164,9 @@ export const Header: React.FC = () => {
             onClick={handleFeedback}
             disabled={!openFeedback}
           >
-            Написать
+            <MessageCircle size={16} aria-hidden="true" />
+            Написать мне
           </button>
-          {location.pathname === '/ai' ? (
-            <Link to="/ai" className="ai-button" onClick={closeMenu}>
-              Спросить ИИ <span aria-hidden="true">↗</span>
-            </Link>
-          ) : (
-            <button
-              type="button"
-              className="ai-button"
-              onClick={handleOpenChat}
-            >
-              Спросить ИИ <span aria-hidden="true">↗</span>
-            </button>
-          )}
           {!userLoading &&
             (user ? (
               <details className="account-menu" ref={accountMenu}>
@@ -250,13 +210,37 @@ export const Header: React.FC = () => {
                   <SignOutButton variant="ghost" />
                 </div>
               </details>
-            ) : (
-              null
-              // <Link className="signin-link" to="/signin" onClick={closeMenu}>
-              //   Войти
-              // </Link>
-            ))}
+            ) : null)
+            // <Link className="signin-link" to="/signin" onClick={closeMenu}>
+            //   Войти
+            // </Link>
+          }
         </HeaderNavStyled>
+        <CallsHeader />
+        <button
+          ref={toggle}
+          type="button"
+          className="menu-toggle"
+          aria-label={isOpen ? 'Закрыть меню' : 'Открыть меню'}
+          aria-expanded={isOpen}
+          aria-controls="main-navigation"
+          onClick={toggleMenu}
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path
+              d={isOpen ? 'M18 6 6 18M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'}
+            />
+          </svg>
+        </button>
       </div>
     </HeaderStyled>
   )

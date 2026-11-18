@@ -28,7 +28,7 @@ export const HeaderNavStyled = styled.nav`
   }
 
   @media (min-width: ${theme.breakpoints.md}px) {
-    gap: 32px;
+    gap: 16px;
   }
 
   &[data-open='true'] {
@@ -100,8 +100,9 @@ export const HeaderStyled = styled.header`
     background: transparent;
     border: 1px solid ${theme.colors.border};
     border-radius: 10px;
-    width: 44px;
-    height: 44px;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
     align-items: center;
     justify-content: center;
     color: inherit;
@@ -111,8 +112,8 @@ export const HeaderStyled = styled.header`
     }
   }
 
-  .feedback-button,
-  .signin-link {
+  nav .feedback-button,
+  nav .signin-link {
     display: inline-flex;
     align-items: center;
     justify-content: flex-start;

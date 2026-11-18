@@ -1,16 +1,13 @@
-import type { CallConnectionStatus, CallServerMessage } from '../interfaces'
+import type {
+  CallConnectionStatus,
+  CallServerMessage,
+  CallSignaling,
+  CallSignalingOptions,
+} from '../interfaces'
 
-export interface CallSignaling {
-  send: (message: unknown) => boolean
-  close: () => void
-}
-export function createCallSignaling(options: {
-  url: string
-  sessionToken: string
-  onMessage: (message: CallServerMessage) => void
-  onStatus: (status: CallConnectionStatus) => void
-  onStopped: () => void
-}): CallSignaling {
+export function createCallSignaling(
+  options: CallSignalingOptions,
+): CallSignaling {
   let socket: WebSocket | null = null
   let disposed = false
   let ready = false

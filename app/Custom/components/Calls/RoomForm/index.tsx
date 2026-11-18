@@ -1,8 +1,10 @@
+import { useCallNotifications } from '../hooks/useCallNotifications'
+import type { CallRoomFormData } from '../interfaces'
 import { AccessSelect } from './AccessSelect'
 import { TextField } from '../../controls/TextField'
 import { useCallback } from 'react'
 import type * as React from 'react'
-import { useId, useState } from 'react'
+import { useId } from 'react'
 import {
   Controller,
   FormProvider,
@@ -12,7 +14,7 @@ import {
 import { yupResolver } from '@hookform/resolvers/yup'
 import { Button } from '../../Button'
 import { CallRoomFormStyled } from './styles'
-import { callRoomSchema, type CallRoomFormData } from './schema'
+import { callRoomSchema } from './schema'
 export const CallRoomForm: React.FC<{
   initial?: CallRoomFormData
   editing?: boolean
@@ -20,7 +22,7 @@ export const CallRoomForm: React.FC<{
   onSave: (data: CallRoomFormData) => Promise<void>
 }> = ({ initial, editing = false, onSave, onCancel }) => {
   const id = useId()
-  const [error, setError] = useState('')
+  const { reportError, addMessage } = useCallNotifications()
   const form = useForm<CallRoomFormData>({
     resolver: yupResolver(callRoomSchema),
     defaultValues: initial ?? {
@@ -30,19 +32,19 @@ export const CallRoomForm: React.FC<{
     },
   })
 
-  const save = form.handleSubmit(async (data) => {
-    setError('')
-    try {
-      await onSave(data)
-      if (editing) {
-        form.reset({ ...data, accessCode: undefined })
+  const save = form.handleSubmit(
+    async (data) => {
+      try {
+        await onSave(data)
+        if (editing) {
+          form.reset({ ...data, accessCode: undefined })
+        }
+      } catch (err) {
+        reportError(err)
       }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Не удалось сохранить комнату',
-      )
-    }
-  })
+    },
+    () => addMessage?.('Проверьте заполнение полей', { variant: 'warning' }),
+  )
 
   const renderTitle: ControllerProps<CallRoomFormData, 'title'>['render'] =
     useCallback(
@@ -127,7 +129,6 @@ export const CallRoomForm: React.FC<{
         {editing && form.watch('accessCode') === '' && (
           <p role="status">После сохранения вход будет без кода.</p>
         )}
-        {error && <p role="alert">{error}</p>}
         <div className="form-actions">
           <Button type="submit" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting

@@ -6,10 +6,7 @@ export const ConferenceStyled = styled.div`
   min-width: 0;
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  &:has(.conference-status) {
-    grid-template-rows: auto auto minmax(0, 1fr);
-  }
+  grid-template-rows: minmax(0, 1fr);
   gap: 6px;
   padding: 10px 10px 72px;
   background: #192421;
@@ -26,12 +23,6 @@ export const ConferenceStyled = styled.div`
   p {
     margin: 0;
     line-height: 1.35;
-  }
-  .conference-heading {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
   }
   .participants-toggle {
     display: flex;
@@ -84,18 +75,6 @@ export const ConferenceStyled = styled.div`
   }
   .conference-workspace[data-participants-open='false'] {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .conference-status {
-    font-size: 10px;
-    color: #c1cec6;
-  }
-  .conference-status .hint {
-    font-size: inherit;
-    color: #c1cec6;
-  }
-  .conference-status [role='alert'] {
-    color: #ffb8b1;
-    overflow-wrap: anywhere;
   }
   .conference-workspace {
     min-height: 0;
@@ -255,6 +234,8 @@ export const ConferenceStyled = styled.div`
     left: 50%;
     transform: translateX(-50%);
     display: flex;
+    max-width: calc(100% - 16px);
+    overflow-x: auto;
     align-items: center;
     gap: 4px;
     padding: 6px;
@@ -263,6 +244,7 @@ export const ConferenceStyled = styled.div`
     box-shadow: 0 6px 24px #0003;
   }
   .conference-toolbar button {
+    flex-shrink: 0;
     width: 36px;
     height: 40px;
     padding: 8px;
@@ -290,22 +272,6 @@ export const ConferenceStyled = styled.div`
   button:focus-visible {
     outline: 2px solid #b8e5c5;
     outline-offset: 2px;
-  }
-  .conference-audio {
-    position: absolute;
-    bottom: 70px;
-    left: 12px;
-    right: 12px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .conference-audio audio:not([controls]) {
-    display: none;
-  }
-  .conference-audio audio[controls] {
-    width: min(280px, 100%);
-    height: 32px;
   }
   .conference-dialog {
     width: min(600px, calc(100vw - 24px));
@@ -402,12 +368,6 @@ export const ConferenceStyled = styled.div`
     h2 {
       font-size: 14px;
     }
-    .conference-status {
-      font-size: 12px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px 20px;
-    }
     .conference-workspace {
       grid-template-columns: minmax(0, 1fr) clamp(180px, 20vw, 280px);
       gap: 14px;
@@ -456,9 +416,6 @@ export const ConferenceStyled = styled.div`
     }
     .stage-caption {
       padding: 4px 8px;
-    }
-    .conference-status {
-      font-size: 10px;
     }
     .conference-dialog {
       padding: 24px 16px 12px;

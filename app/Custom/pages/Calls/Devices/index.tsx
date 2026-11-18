@@ -1,12 +1,21 @@
 import type * as React from 'react'
 import { Link } from 'react-router'
 import { CallsStyled } from 'app/Custom/components/Calls/styles'
-import { useCallMedia } from 'app/Custom/components/Calls/hooks/useCallMedia'
+import {
+  useCallPreview,
+  useCallMedia,
+} from 'app/Custom/components/Calls/hooks/useCallMedia'
+import { previewMediaId } from 'app/Custom/components/Calls/hooks/useCallMedia'
 import { DeviceControls } from 'app/Custom/components/Calls/DeviceControls'
 import { CameraEffects } from './CameraEffects'
 import { ScreenShare } from './ScreenShare'
+import { TestBroadcast } from './TestBroadcast'
 export const CallDevicesPage: React.FC = () => {
-  const media = useCallMedia()
+  useCallPreview()
+  const media = useCallMedia(previewMediaId)
+  if (!media) {
+    return <CallsStyled>Загрузка устройств…</CallsStyled>
+  }
   return (
     <CallsStyled>
       <nav>
@@ -19,11 +28,12 @@ export const CallDevicesPage: React.FC = () => {
         созвона. Комната и регистрация не нужны. Проверка выполняется в
         браузере: звук и видео никуда не отправляются.
       </p>
+      <TestBroadcast />
       <DeviceControls
-        media={media}
+        mediaId={previewMediaId}
         cameraPreview={<CameraEffects stream={media.streams.camera} />}
       />
-      <ScreenShare media={media} />
+      <ScreenShare />
     </CallsStyled>
   )
 }

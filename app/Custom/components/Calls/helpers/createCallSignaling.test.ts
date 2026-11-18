@@ -1,6 +1,6 @@
+import type { CallConnectionStatus, CallSignaling } from '../interfaces'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createCallSignaling, type CallSignaling } from './createCallSignaling'
-import type { CallConnectionStatus } from '../interfaces'
+import { createCallSignaling } from './createCallSignaling'
 
 class FakeSocket {
   static OPEN = 1

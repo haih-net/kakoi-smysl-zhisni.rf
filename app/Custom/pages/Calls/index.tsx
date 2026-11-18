@@ -1,27 +1,27 @@
+import { useCallRoomMutations } from '../../components/Calls/hooks/useCallRoomMutations'
+import type { CallRoomFormData } from '../../components/Calls/interfaces'
 import { CallRoomList } from 'app/Custom/components/Calls/RoomList'
 import { useCallback } from 'react'
 import type * as React from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Video, MonitorUp } from 'lucide-react'
-import { useCreateCallRoomMutation } from 'app/gql/generated'
 import { useAppContext } from 'app/Custom/components/AppContext'
 import { CallsStyled } from 'app/Custom/components/Calls/styles'
-import type { CallRoomFormData } from 'app/Custom/components/Calls/RoomForm/schema'
+
 import { CallRoomForm } from 'app/Custom/components/Calls/RoomForm'
 
 export const CallsPage: React.FC = () => {
   const { user } = useAppContext() ?? {}
-  const [createRoom] = useCreateCallRoomMutation()
+  const { createRoom } = useCallRoomMutations()
   const navigate = useNavigate()
   const save = useCallback(
     async (data: CallRoomFormData): Promise<void> => {
-      const result = await createRoom({ variables: { data } })
-      const created = result.data?.createCallRoom
-      if (!created?.id) {
-        throw new Error('Сервер не вернул комнату')
+      if (!createRoom) {
+        throw new Error('Управление звонками недоступно')
       }
+      const id = await createRoom(data)
       void navigate(
-        `/calls/${created.id}${data.accessCode ? `#code=${encodeURIComponent(data.accessCode)}` : ''}`,
+        `/calls/${id}${data.accessCode ? `#code=${encodeURIComponent(data.accessCode)}` : ''}`,
       )
     },
     [createRoom, navigate],
